@@ -16,7 +16,7 @@ the single-particle eigenmodes i of the system.
 
 import numpy as np
 from matplotlib import pyplot as plt
-import scipy
+from scipy.optimize import fsolve
 
 def get_k(M):
     """ Return all M possible quasimomenta of the tight binding chain
@@ -51,7 +51,8 @@ def get_R_e_test(E, M, g_e, T_e, R_e, epsilon):
     for i in range(M):
         for j in range(M):
             if i != j:
-                R_e_test[i,j] = g_e**2*(E[i] - E[j])/(4*np.exp((E[i] - E[j])/T_e)-4)
+                R_e_test[i,j] = g_e**2*(E[i] - E[j])/(4*np.exp((E[i] 
+                                                        - E[j])/T_e)-4)
             else:
                 R_e_test[i,j] = g_e**2 * T_e/4
     return np.abs(R_e_test - R_e) < epsilon
@@ -91,26 +92,71 @@ def get_R_h_test(E, M, l, g_h, T_h, R_h, epsilon):
                 R_h_test[i,j] = g_h**2 * T_h * sin[i] * sin[j]
     return np.abs(R_h_test - R_h) < epsilon
 
+def get_R(R_e,R_h):
+    """ Calculate the transition rate matrix. The element (i,j) accords to
+    the number of transitions per time unit from energystate j to i."""
+    R = R_e + R_h
+    return R
+    
+
+def get_n1(r,N):
+    """ Return the mean occupation number of the ground state with the
+    given total particle number. r is the vector of all other mean occupation
+    numbers of the energystates 2,...,M."""
+    n1 = N - np.sum(r)
+    return n1
+    
+
+def func(r, *data):
+    """This is the function which roots should be determined.r is the vector 
+    of the mean occupation numbers of the energystates 2,...,M. R is the
+    matrix of transition rates. r represents the solution of the M-1 
+    dimensional system of nonlinear equations."""
+    R, M, N = data              # trans. rates, system size, particle number
+    n1 = get_n1(r,N)            # occupation number of groundstate
+    n = np.zeros(M)             # vector of mean occupation numbers
+    n[0] = n1   
+    n[1:] = r                    
+    func = np.zeros(M)          # implement all M equations at first
+    A = R - np.transpose(R)     # rate asymmetry matrix
+    func = np.dot(A,n)*n + np.dot(R,n) - R.sum(axis=0) * n
+    
+    return func[1:]             # slice away the last equation
+
 def main():
     main.__doc__ = __doc__
     print __doc__
+    
+    # set parameters
     J = 1.                              # dispersion-constant
-    M = 4                               # system size (number of sites)
+    M = 5                               # system size (number of sites)
+    n = 3                               # density
+    N = n*M                             # number of particles
     l = 1                               # heated site
     g_h = 1                             # coupling strength needle<->system
     g_e = 2*g_h                         # coupling strength environment<->sys
     T_h = 60 * J                        # temperature of the needle
-    T_e = 0.29 * J                      # temperature of the environment
+    T_e = 100 * J                       # temperature of the environment
+    
+    # determine all relevant koeffizients
     k = get_k(M)                        # vector of all quasimomenta
     E = get_E(J,k)                      # vector of all energyvalues
     R_e = get_R_e(E, M, g_e, T_e)       # matrix with transition rates (env)
-    # print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
+    #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
     R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
     # print get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-15)
+    R = get_R(R_e, R_h)                 # total transition rates
+    data = (R, M, N)                    # arguments for fsolve  
+
+    # solve the nonlinear system of equations    
+    solution = fsolve(func,np.ones(M-1)*N/M,args=data, full_output=1)
+    print "Solution converged: ", solution[2]
+    print "Log:", solution[3]
+    n1 = get_n1(solution[0],N)          # occupation number of the ground state
+    n = np.zeros(M)                     # vector of all occupation numbers
+    n[0], n[1:] = n1 , solution[0]
+    print "Occupation numbers: ", n
     
-    
-    
-    
-    
+       
 if __name__ == '__main__':
     main()
