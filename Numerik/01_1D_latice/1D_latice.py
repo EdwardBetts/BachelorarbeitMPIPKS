@@ -24,8 +24,6 @@ def get_k(M):
     k = np.arange(1,M+1)*np.pi/(M+1)    # vector of all possible quasimomenta
     return k
     
-
-
 def get_E(J,k):
     """ Return the energy E at given quasimomentum k with the 
     dispersion relation. """
@@ -129,33 +127,65 @@ def main():
     
     # set parameters
     J = 1.                              # dispersion-constant
-    M = 5                               # system size (number of sites)
+    M = 200                               # system size (number of sites)
     n = 3                               # density
     N = n*M                             # number of particles
-    l = 1                               # heated site
-    g_h = 1                             # coupling strength needle<->system
-    g_e = 2*g_h                         # coupling strength environment<->sys
+    l = 5                               # heated site
+    g_h = 1.                             # coupling strength needle<->system
+    g_e = 1. #2*g_h                         # coupling strength environment<->sys
     T_h = 60 * J                        # temperature of the needle
-    T_e = 100 * J                       # temperature of the environment
+    N_T = 1000
+    T_e = 10**np.linspace(-2,2,N_T)        # temperatures of the environment
+    
+    mat_n = np.zeros((M,N_T))           # matrix for occ. num at all temp.    
+    
+       
     
     # determine all relevant koeffizients
+    
+    # parameters that are independent from the environment temperature
     k = get_k(M)                        # vector of all quasimomenta
     E = get_E(J,k)                      # vector of all energyvalues
-    R_e = get_R_e(E, M, g_e, T_e)       # matrix with transition rates (env)
-    #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
     R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
-    # print get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-15)
-    R = get_R(R_e, R_h)                 # total transition rates
-    data = (R, M, N)                    # arguments for fsolve  
-
-    # solve the nonlinear system of equations    
-    solution = fsolve(func,np.ones(M-1)*N/M,args=data, full_output=1)
-    print "Solution converged: ", solution[2]
-    print "Log:", solution[3]
-    n1 = get_n1(solution[0],N)          # occupation number of the ground state
-    n = np.zeros(M)                     # vector of all occupation numbers
-    n[0], n[1:] = n1 , solution[0]
-    print "Occupation numbers: ", n
+    #print get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-15)
+    
+    
+    # iterate over all environment temperatures
+    r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
+    for i in range(N_T):
+        R_e = get_R_e(E, M, g_e, T_e[-i])   # matrix with transition rates (env)
+        #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
+        R = get_R(R_e, R_h)                 # total transition rates
+        data = (R, M, N)                    # arguments for fsolve 
+        
+        # solve the nonlinear system of equations    
+        solution = fsolve(func, r_0,args=data, full_output=1)
+        n1 = get_n1(solution[0],N)      # occupation number of the ground state
+        n = np.zeros(M)                 # vector of all occupation numbers
+        n[0], n[1:] = n1 , solution[0] 
+        #print "Occupation numbers: ", n
+        r_0 = solution[0]
+        #if solution[2] == 0 or np.any(n<0.):
+            #print solution[3]
+            #print "T_e = ", T_e[-i]
+        mat_n[:,-i] = n
+    
+    # print mat_n
+    # set-up-plotting window
+    fig = plt.figure("Mean-field occupation", figsize=(15,8))
+    axOcc = fig.add_subplot(111)
+    axOcc.set_xlabel(r'$T/J$')
+    axOcc.set_ylabel(r'$\bar{n}_i$')
+    axOcc.set_xlim([np.min(T_e), np.max(T_e)])
+    axOcc.set_xscale('log')
+    axOcc.set_yscale('log')
+    axOcc.set_title('Mean-field occupation') 
+    
+    for i in range(M):
+        axOcc.plot(T_e,np.abs(mat_n[i,:]), c = 'b')
+        
+    plt.show()
+            
     
        
 if __name__ == '__main__':
