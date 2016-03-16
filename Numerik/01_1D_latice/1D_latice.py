@@ -70,7 +70,7 @@ def get_R_h(E, M, l, g_h, T_h):
     R_h[ind] = g_h**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_h)-1)
     
     # multiply the sine-terms
-    sin = np.sin(l*np.arange(1,M+1))**2 # vector with sine-values sin(li)**2
+    sin = np.sin(l*np.arange(1,M+1)*np.pi/(M+1))**2 # vector with sine-values sin(li)**2
     # transform sine-vectors into matrices
     mat_sin_x, mat_sin_y = np.meshgrid(sin,sin)
     R_h *= mat_sin_x * mat_sin_y
@@ -81,7 +81,7 @@ def get_R_h_test(E, M, l, g_h, T_h, R_h, epsilon):
     """ A test routine for checking whether the calculation in get_R_h is 
     correct. Epsilon is the maximal accepted deviation between the results."""
     R_h_test = np.zeros((M,M))
-    sin = np.sin(l*np.arange(1,M+1))**2
+    sin = np.sin(l*np.arange(1,M+1)*np.pi/(M+1))**2
     for i in range(M):
         for j in range(M):
             if i != j:
@@ -175,7 +175,7 @@ def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
         In the case of success it returns the correct occupation number 
         n(T_e[i]). In the case of failure (if tmpN_T >= tmpN_max) it 
         returns an exception-string."""
-    while tmpN_t < tmpN_max:                     # repeat until tmpN_t reaches max.
+    while tmpN_t < tmpN_max:                    # repeat until tmpN_t reaches max.
         tmpT = get_tmpT(T_e, i, tmpN_t)         # reduced temperature array
                                                 # for closer sample points    
         for j in range(tmpN_t):
@@ -185,7 +185,7 @@ def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
             data = (R, M, N)                    # arguments for fsolve  
             #-----------solve the nonlinear system of equations--------------------    
             solution = fsolve(func, r_0,args=data, full_output=1)
-            if solution[2] == 0:         # if sol. didnt conv., increase s.p.
+            if solution[2] == 0:                # if sol. didnt conv., increase s.p.
                 tmpN_t *= 10
                 break
             else:
@@ -200,61 +200,87 @@ def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
                 else:
                     return n
         print "Increased tmpN!"
-        
 
-def main():
-    main.__doc__ = __doc__
-    print __doc__
-    
-    # ------------------------------set parameters-----------------------------
-    J = 1.                              # dispersion-constant
-    M = 200                             # system size (number of sites)
-    n = 3                               # density
-    N = n*M                             # number of particles
-    l = 5                               # heated site
-    g_h = 0.                            # coupling strength needle<->system
-    g_e = 1.                            # coupling strength environment<->sys
-    T_h = 60 * J                        # temperature of the needle
-    N_T = 100                           # number of temp. data-points
-    tmpN_t = 4                          # number of temp. data-points in
-                                        # temporary calculations
-    tmpN_max = 256                      # maximal number of subslices
-    T_e = np.logspace(-2,2,N_T)         # temperatures of the environment    
-    
-    #--------------calculate environment temp. independent parameters----------
-    k = get_k(M)                        # vector of all quasimomenta
-    E = get_E(J,k)                      # vector of all energyvalues
-    R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
-    #print get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-15)
-    
-    #-----calculate the occupation numbers in dependency of the temp-----------
-    r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
-    mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max)            
-    
-    # print mat_n
-    #-----------------------plot n_i(T_E)--------------------------------------
-
-    fig = plt.figure("Mean-field occupation", figsize=(16,9))
-    axT = fig.add_subplot(121)
-    axT.set_xlabel(r'$T/J$')
-    axT.set_ylabel(r'$\bar{n}_i$')
-    axT.set_xlim([np.min(T_e), np.max(T_e)])
-    axT.set_ylim([8*10e-3, 3*N])
-    axT.set_xscale('log')
-    axT.set_yscale('log')
-    
-    axK = fig.add_subplot(122)
-    axK.set_xlabel(r'$k/a$')
-    axK.set_ylabel(r'$\bar{n}_i$')
-    axK.set_xlim([0, np.pi])
-    axK.set_ylim([8*10e-3, 3*N])
-    axK.set_yscale('log')
-    
+def plot_axT(T_e, M, mat_n):
+    """ Plots the occupation numbers for different environment temperatures."""
     for i in range(M):
-        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')
+        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')   
+
+def onMouseClick(event):
+    mode = plt.get_current_fig_manager().toolbar.mode
+    if  event.button == 1 and event.inaxes == axT and mode == '':
+        # find the clicked position and draw a vertical line
+        T_click = event.xdata
+        dist_T = np.abs(T_e - T_click)
+        ind_click = np.arange(N_T)[dist_T == np.min(dist_T)][0]
+        T_plot = T_e[ind_click]
+        vline = axT.axvline(T_plot, color='r')
+        
+        # plot n(k)
+        print mat_n[:,ind_click]
+        graph_K = axK.plot(k, mat_n[:,ind_click], color='r')
+        
+        # remove line after refreshing
+        fig.canvas.draw()
+        g = graph_K.pop(0)
+        g.remove()
+        del g
+        vline.remove()
+        del vline
+
+#def main():
+print __doc__
     
-    matplotlib.rcParams.update({'font.size': 18})
-    plt.show()
+# ------------------------------set parameters-----------------------------
+J = 1.                              # dispersion-constant
+M = 200                             # system size (number of sites)
+n = 3                               # density
+N = n*M                             # number of particles
+l = 5                               # heated site
+g_h = 1.                            # coupling strength needle<->system
+g_e = 1.                            # coupling strength environment<->sys
+T_h = 60 * J                        # temperature of the needle
+N_T = 100                           # number of temp. data-points
+tmpN_t = 4                          # number of temp. data-points in
+                                    # temporary calculations
+tmpN_max = 256                      # maximal number of subslices
+T_e = np.logspace(-2,2,N_T)         # temperatures of the environment    
+    
+#--------------calculate environment temp. independent parameters----------
+k = get_k(M)                        # vector of all quasimomenta
+E = get_E(J,k)                      # vector of all energyvalues
+R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
+print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-14))
+    
+#-----calculate the occupation numbers in dependency of the temp-----------
+r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
+mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max)            
+
+#-----------------------plot n_i(T_E)--------------------------------------
+
+fig = plt.figure("Mean-field occupation", figsize=(16,9))
+axT = fig.add_subplot(121)
+axT.set_xlabel(r'$T/J$')
+axT.set_ylabel(r'$\bar{n}_i$')
+axT.set_xlim([np.min(T_e), np.max(T_e)])
+axT.set_ylim([8*10e-3, 3*N])
+axT.set_xscale('log')
+axT.set_yscale('log')
+    
+axK = fig.add_subplot(122)
+axK.set_xlabel(r'$k/a$')
+axK.set_ylabel(r'$\bar{n}_i$')
+axK.set_xlim([0, np.pi])
+axK.set_ylim([8*10e-3, 3*N])
+axK.set_yscale('log')
+
+# connect plotting window with the onClick method
+cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
+    
+plot_axT(T_e, M, mat_n)
+    
+matplotlib.rcParams.update({'font.size': 18})
+plt.show()
               
-if __name__ == '__main__':
-    main()
+#if __name__ == '__main__':
+#   main()
