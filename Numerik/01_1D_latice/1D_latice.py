@@ -17,6 +17,7 @@ the single-particle eigenmodes i of the system.
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import fsolve
+import matplotlib
 
 def get_k(M):
     """ Return all M possible quasimomenta of the tight binding chain
@@ -121,72 +122,128 @@ def func(r, *data):
     
     return func[1:]             # slice away the last equation
 
+def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
+    """ Solve the nonlinear system of equations in dependency of the 
+        environment temperature T_e and return a matrix of occupation
+        numbers n_i(T).
+        Important for the numerics is the initial guess r_0 of the 
+        occupation distribution (n_2,..,n_M) for the highest temperature 
+        T_e[-1]. """
+    mat_n = np.zeros((M,N_T))               # matrix for the result
+    for i in range(N_T):
+        R_e = get_R_e(E, M, g_e, T_e[-i-1]) # matrix with transition rates (env)
+        #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
+        R = get_R(R_e, R_h)                 # total transition rates
+        data = (R, M, N)                    # arguments for fsolve  
+        #-----------solve the nonlinear system of equations--------------------    
+        solution = fsolve(func, r_0,args=data, full_output=1)
+        if solution[2] == 0:                # if sol. didnt conv., repeat calcul.
+            print i
+        else:
+            n1 = get_n1(solution[0],N) # occupation number of the ground state
+            n = np.zeros(M)                 # vector of all occupation numbers
+            n[0], n[1:] = n1 , solution[0] 
+            if np.any(n<0.):                # if solution is unphysical      
+                print i
+                n = get_tmp_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
+                r_0 = n[1:]
+            else:
+                r_0 = solution[0]
+            mat_n[:,-i-1] = n
+    return mat_n
+
+def get_tmpT(T_e, i, tmpN_t):
+    """ Calculate an array of logspaced temperature sample points with
+        elements in [T_e[-i-1],T_e[-i]]."""
+    if i == 0:
+        print "Solution converged into an unphysical state. ",\
+                "Choose a better initial guess r_0."
+    else:
+        tmpT = np.logspace(np.log10(T_e[-i-1]), np.log10(T_e[-i]), num= tmpN_t,
+                           endpoint = True)
+        return tmpT
+
+def get_tmp_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
+    """ Solve the nonlinear system of equations in dependency of the 
+        environment temperature T_e and return a matrix of occupation
+        numbers n_i(T).
+        Important for the numerics is the initial guess r_0 of the 
+        occupation distribution (n_2,..,n_M) for the highest temperature 
+        T_e[-1]. """
+    while tmpN_t < tmpN_max:                     # repeat until tmpN_t reaches max.
+        tmpT = get_tmpT(T_e, i, tmpN_t)         # reduced temperature array
+                                                # for closer sample points    
+        for j in range(tmpN_t):
+            R_e = get_R_e(E, M, g_e, tmpT[-j-1])# matrix with transition rates (env)
+            #print get_R_e_test(E, M, g_e, tmpT, R_e, 10e-15)
+            R = get_R(R_e, R_h)                 # total transition rates
+            data = (R, M, N)                    # arguments for fsolve  
+            #-----------solve the nonlinear system of equations--------------------    
+            solution = fsolve(func, r_0,args=data, full_output=1)
+            if solution[2] == 0:         # if sol. didnt conv., increase s.p.
+                tmpN_t *= 10
+                break
+            else:
+                n1 = get_n1(solution[0],N) # occupation number of the ground state
+                n = np.zeros(M)            # vector of all occupation numbers
+                n[0], n[1:] = n1 , solution[0] 
+                if np.any(n<0.):           # if solution is unphysical        
+                    tmpN_t *= 2           # increase num of sample points
+                    break
+                elif j!= tmpN_t-1:         # if iteration is not finished
+                    r_0 = solution[0]      # just change initial guess 
+                else:
+                    return n
+        print "Increased tmpN!"             
+    print "Calculation failed!"
+        
+
 def main():
     main.__doc__ = __doc__
     print __doc__
     
-    # set parameters
+    # ------------------------------set parameters-----------------------------
     J = 1.                              # dispersion-constant
-    M = 200                               # system size (number of sites)
+    M = 300                             # system size (number of sites)
     n = 3                               # density
     N = n*M                             # number of particles
     l = 5                               # heated site
-    g_h = 1.                             # coupling strength needle<->system
-    g_e = 1. #2*g_h                         # coupling strength environment<->sys
+    g_h = 1.                            # coupling strength needle<->system
+    g_e = 1.                            # coupling strength environment<->sys
     T_h = 60 * J                        # temperature of the needle
-    N_T = 1000
-    T_e = 10**np.linspace(-2,2,N_T)        # temperatures of the environment
+    N_T = 100                           # number of temp. data-points
+    tmpN_t = 4                          # number of temp. data-points in
+                                        # temporary calculations
+    tmpN_max = 256                      # maximal number of subslices
+    T_e = np.logspace(-2,2,N_T)         # temperatures of the environment    
     
-    mat_n = np.zeros((M,N_T))           # matrix for occ. num at all temp.    
-    
-       
-    
-    # determine all relevant koeffizients
-    
-    # parameters that are independent from the environment temperature
+    #--------------calculate environment temp. independent parameters----------
     k = get_k(M)                        # vector of all quasimomenta
     E = get_E(J,k)                      # vector of all energyvalues
     R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
     #print get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-15)
     
-    
-    # iterate over all environment temperatures
+    #-----calculate the occupation numbers in dependency of the temp-----------
     r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
-    for i in range(N_T):
-        R_e = get_R_e(E, M, g_e, T_e[-i])   # matrix with transition rates (env)
-        #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
-        R = get_R(R_e, R_h)                 # total transition rates
-        data = (R, M, N)                    # arguments for fsolve 
-        
-        # solve the nonlinear system of equations    
-        solution = fsolve(func, r_0,args=data, full_output=1)
-        n1 = get_n1(solution[0],N)      # occupation number of the ground state
-        n = np.zeros(M)                 # vector of all occupation numbers
-        n[0], n[1:] = n1 , solution[0] 
-        #print "Occupation numbers: ", n
-        r_0 = solution[0]
-        #if solution[2] == 0 or np.any(n<0.):
-            #print solution[3]
-            #print "T_e = ", T_e[-i]
-        mat_n[:,-i] = n
+    mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max)            
     
     # print mat_n
-    # set-up-plotting window
+    #-----------------------plot n_i(T_E)--------------------------------------
     fig = plt.figure("Mean-field occupation", figsize=(15,8))
     axOcc = fig.add_subplot(111)
     axOcc.set_xlabel(r'$T/J$')
     axOcc.set_ylabel(r'$\bar{n}_i$')
     axOcc.set_xlim([np.min(T_e), np.max(T_e)])
+    axOcc.set_ylim([8*10e-3, 3*N])
     axOcc.set_xscale('log')
     axOcc.set_yscale('log')
     axOcc.set_title('Mean-field occupation') 
+    matplotlib.rcParams.update({'font.size': 20})
     
     for i in range(M):
         axOcc.plot(T_e,np.abs(mat_n[i,:]), c = 'b')
         
     plt.show()
-            
-    
-       
+              
 if __name__ == '__main__':
     main()
