@@ -144,9 +144,13 @@ def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
             n = np.zeros(M)                 # vector of all occupation numbers
             n[0], n[1:] = n1 , solution[0] 
             if np.any(n<0.):                # if solution is unphysical      
-                print i
-                n = get_tmp_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
-                r_0 = n[1:]
+                print "Needed to repeat calculation at index i =",i
+                n = get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
+                if n == None:
+                    print "Calculation failed! You may choose a larger tmpN_max."
+                    break
+                else:
+                    r_0 = n[1:]
             else:
                 r_0 = solution[0]
             mat_n[:,-i-1] = n
@@ -163,13 +167,14 @@ def get_tmpT(T_e, i, tmpN_t):
                            endpoint = True)
         return tmpT
 
-def get_tmp_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
-    """ Solve the nonlinear system of equations in dependency of the 
-        environment temperature T_e and return a matrix of occupation
-        numbers n_i(T).
-        Important for the numerics is the initial guess r_0 of the 
-        occupation distribution (n_2,..,n_M) for the highest temperature 
-        T_e[-1]. """
+def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
+    """ If the calculation in get_mat_n throws an invalid value for a 
+        particular temperature T_e[i], this function tries to repeat the 
+        calculation with a smaller stepsize in the interval T_e[i-1],T_e[i]
+        for getting a better initial guess.
+        In the case of success it returns the correct occupation number 
+        n(T_e[i]). In the case of failure (if tmpN_T >= tmpN_max) it 
+        returns an exception-string."""
     while tmpN_t < tmpN_max:                     # repeat until tmpN_t reaches max.
         tmpT = get_tmpT(T_e, i, tmpN_t)         # reduced temperature array
                                                 # for closer sample points    
@@ -194,8 +199,7 @@ def get_tmp_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
                     r_0 = solution[0]      # just change initial guess 
                 else:
                     return n
-        print "Increased tmpN!"             
-    print "Calculation failed!"
+        print "Increased tmpN!"
         
 
 def main():
@@ -204,11 +208,11 @@ def main():
     
     # ------------------------------set parameters-----------------------------
     J = 1.                              # dispersion-constant
-    M = 300                             # system size (number of sites)
+    M = 200                             # system size (number of sites)
     n = 3                               # density
     N = n*M                             # number of particles
     l = 5                               # heated site
-    g_h = 1.                            # coupling strength needle<->system
+    g_h = 0.                            # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
     T_h = 60 * J                        # temperature of the needle
     N_T = 100                           # number of temp. data-points
@@ -229,20 +233,27 @@ def main():
     
     # print mat_n
     #-----------------------plot n_i(T_E)--------------------------------------
-    fig = plt.figure("Mean-field occupation", figsize=(15,8))
-    axOcc = fig.add_subplot(111)
-    axOcc.set_xlabel(r'$T/J$')
-    axOcc.set_ylabel(r'$\bar{n}_i$')
-    axOcc.set_xlim([np.min(T_e), np.max(T_e)])
-    axOcc.set_ylim([8*10e-3, 3*N])
-    axOcc.set_xscale('log')
-    axOcc.set_yscale('log')
-    axOcc.set_title('Mean-field occupation') 
-    matplotlib.rcParams.update({'font.size': 20})
+
+    fig = plt.figure("Mean-field occupation", figsize=(16,9))
+    axT = fig.add_subplot(121)
+    axT.set_xlabel(r'$T/J$')
+    axT.set_ylabel(r'$\bar{n}_i$')
+    axT.set_xlim([np.min(T_e), np.max(T_e)])
+    axT.set_ylim([8*10e-3, 3*N])
+    axT.set_xscale('log')
+    axT.set_yscale('log')
+    
+    axK = fig.add_subplot(122)
+    axK.set_xlabel(r'$k/a$')
+    axK.set_ylabel(r'$\bar{n}_i$')
+    axK.set_xlim([0, np.pi])
+    axK.set_ylim([8*10e-3, 3*N])
+    axK.set_yscale('log')
     
     for i in range(M):
-        axOcc.plot(T_e,np.abs(mat_n[i,:]), c = 'b')
-        
+        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')
+    
+    matplotlib.rcParams.update({'font.size': 18})
     plt.show()
               
 if __name__ == '__main__':
