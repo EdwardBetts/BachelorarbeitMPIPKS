@@ -204,11 +204,41 @@ def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
 def plot_axT(T_e, M, mat_n):
     """ Plots the occupation numbers for different environment temperatures."""
     for i in range(M):
-        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')   
+        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')  
+        
+def plot_init_axK(T_c, T_e, E, k, M, mat_n):
+    """Plot """
+    global graph_K
+    global graph_BE
+    global vline
+    dist_T = np.abs(T_e - T_c)
+    ind_plot = np.arange(M)[dist_T == np.min(dist_T)][0]
+    T_plot = T_e[ind_plot]
+    vline = axT.axvline(T_plot, color='r')
+    graph_K = axK.plot(k, mat_n[:,ind_plot], color='r')
+    graph_BE = axK.plot(k[1:], get_BE(T_plot, E, k), color='b')
+    
+def get_BE(T_e, E, k):
+    """ Plots the occupation numbers for different environment temperatures."""
+    n_BE = 1./(np.exp((E[1:]-E[0])/T_e)-1)
+    return n_BE
 
 def onMouseClick(event):
     mode = plt.get_current_fig_manager().toolbar.mode
     if  event.button == 1 and event.inaxes == axT and mode == '':
+        global graph_K
+        global graph_BE
+        global vline
+        # remove lines drawn before        
+        g = graph_K.pop(0)
+        g.remove()
+        del g
+        g = graph_BE.pop(0)
+        g.remove()
+        del g
+        vline.remove()
+        del vline    
+        
         # find the clicked position and draw a vertical line
         T_click = event.xdata
         dist_T = np.abs(T_e - T_click)
@@ -217,40 +247,45 @@ def onMouseClick(event):
         vline = axT.axvline(T_plot, color='r')
         
         # plot n(k)
-        print mat_n[:,ind_click]
+        #print mat_n[:,ind_click]
         graph_K = axK.plot(k, mat_n[:,ind_click], color='r')
-        
-        # remove line after refreshing
+        graph_BE = axK.plot(k[1:], get_BE(T_plot, E, k), color='b')
+        # refreshing
         fig.canvas.draw()
-        g = graph_K.pop(0)
-        g.remove()
-        del g
-        vline.remove()
-        del vline
+        
 
 #def main():
 print __doc__
     
 # ------------------------------set parameters-----------------------------
+#---------------------------physical parameters--------------------------------
 J = 1.                              # dispersion-constant
-M = 200                             # system size (number of sites)
+M = 300                             # system size (number of sites)
 n = 3                               # density
 N = n*M                             # number of particles
-l = 5                               # heated site
+l = 4                               # heated site
 g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
 T_h = 60 * J                        # temperature of the needle
+
+#----------------------------program parameters--------------------------------
 N_T = 100                           # number of temp. data-points
 tmpN_t = 4                          # number of temp. data-points in
                                     # temporary calculations
 tmpN_max = 256                      # maximal number of subslices
-T_e = np.logspace(-2,2,N_T)         # temperatures of the environment    
+T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
+T_c = 2 * J * n                     # critical temperature for BE-Cond.  
+
+#---------------------------global objects for plots---------------------------
+vline = None
+graph_K = None
+graph_BE = None
     
 #--------------calculate environment temp. independent parameters----------
 k = get_k(M)                        # vector of all quasimomenta
 E = get_E(J,k)                      # vector of all energyvalues
 R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
-print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-14))
+print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-10))
     
 #-----calculate the occupation numbers in dependency of the temp-----------
 r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
@@ -263,7 +298,7 @@ axT = fig.add_subplot(121)
 axT.set_xlabel(r'$T/J$')
 axT.set_ylabel(r'$\bar{n}_i$')
 axT.set_xlim([np.min(T_e), np.max(T_e)])
-axT.set_ylim([8*10e-3, 3*N])
+axT.set_ylim([8*10e-5, 3*N])
 axT.set_xscale('log')
 axT.set_yscale('log')
     
@@ -271,13 +306,17 @@ axK = fig.add_subplot(122)
 axK.set_xlabel(r'$k/a$')
 axK.set_ylabel(r'$\bar{n}_i$')
 axK.set_xlim([0, np.pi])
-axK.set_ylim([8*10e-3, 3*N])
+axK.set_ylim([8*10e-4, 3*N])
 axK.set_yscale('log')
 
 # connect plotting window with the onClick method
 cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
-    
+
+# plot initial lines    
 plot_axT(T_e, M, mat_n)
+plot_init_axK(T_c, T_e, E, k, M, mat_n)
+# refreshing
+fig.canvas.draw()
     
 matplotlib.rcParams.update({'font.size': 18})
 plt.show()
