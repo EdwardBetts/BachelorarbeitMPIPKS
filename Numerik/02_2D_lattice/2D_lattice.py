@@ -1,14 +1,13 @@
 # -*- coding: us-ascii -*-
 """
-title: 1D_latice.py
+title: 2D_lattice.py
 author: Toni Ehmcke (MaNr: 3951871)
 date modified: 15.03.16
 
-Consider a 1D tight-binding chain of M sites 1,..,M.
-The dispersion-relation is E(k) = -2Jcos(k).
+Consider a 2D tight-binding lattice of Mx x My sites.
 It shall be embedded in an environment with temperature T_e, coupling 
-strength g_e. The site l << M is connected to a second bath with 
-temperature T_h >> J.
+strength g_e. The site (lx,ly) is connected to a second bath with 
+temperature T_h >> J and coupling strength g_h.
 
 Objective of this program is to determine the mean field occupations n_i of
 the single-particle eigenmodes i of the system.
@@ -20,57 +19,105 @@ from scipy.optimize import fsolve
 import matplotlib
 
 def get_k(M):
-    """ Return all M possible quasimomenta of the tight binding chain
+    """ Return all M possible quasimomenta of a 1D tight binding chain
     in the first Brillouin zone."""
     k = np.arange(1,M+1)*np.pi/(M+1)    # vector of all possible quasimomenta
     return k
     
-def get_E(J,k):
-    """ Return the energy E at given quasimomentum k with the 
+def get_E(kx, ky, Jx, Jy, Mx, My):
+    """ Return the energy E at given quasimomenta kx, ky with the 
     dispersion relation. """
-    E = -2 * J * np.cos(k)              # energyeigenvalue 
-    return E
+    # matrix with energies. kx is constant in each column, ky in each row.
+    E = np.zeros((My,Mx))
+    for i in range(My):
+        for j in range(Mx):
+            E[i,j] = -2*(Jx*np.cos(kx)[j]+Jy*np.cos(ky[i]))
+    vecE = E.reshape(My*Mx)
+    return vecE
     
-def get_R_e(E, M, g_e, T_e):
+def getIndexMat(A, i, j, retVec=False):
+    """ Let A be a m x n matrix. This function returns the index of the
+    element A_{i,j} by counting the elements rowwise.
+    This function is sensefull for transforming A into a vector.
+    If retVec is set True this function also returns the transformed matrix."""
+    numRowsA = np.shape(A)[1]                 # number of rows of A  
+    vecInd = i * numRowsA + j                 # index of the element in vector
+    if not retVec: 
+        return vecInd
+    else:
+        numColsA = np.shape(A)[0]              # number of colums of A 
+        vecA = np.reshape(A,numColsA*numRowsA) # vectorized matrix A
+        return vecInd, vecA
+
+def getIndexVec(a, i, m, n, retMat=False):
+    """ Let a be a n vector. This function returns the indices (j,k) of 
+    element a_i if a is transformed into matrix A (m x n). The elements of 
+    A are counted rowwise.
+    This function is sensefull for transforming a into a matrix.
+    If retMat is set True this function also returns the transformed vector."""
+    if len(a) == m*n:
+        rowInd = int(i)/int(n)                  # row index of the element
+        colInd = int(i)%int(n)                  # colum index of the element    
+        if not retMat:
+            return rowInd, colInd
+        else:
+            matA = np.reshape(a,(m,n))          # vector a -> matrix A
+            return rowInd, colInd, matA
+    else:
+        print "Vector and matrix must have the same dimensions!"
+    
+def get_R_e(E, Mx, My, g_e, T_e):
     """ Return the contribution of the environment to the transition rate."""
     # transform energy-vector into matrices
     mat_E_x, mat_E_y = np.meshgrid(E,E) 
     mat_diff = mat_E_y - mat_E_x        # matrix representing: E_i - E_j
-    R_e = np.ones((M,M))*g_e**2 * T_e/4 # matrix for transition rates
+    # matrix for transition rates
+    R_e = np.ones((Mx*My,Mx*My))* g_e**2 * T_e/Mx/My 
     ind = np.abs(mat_diff) > 0          # indices of the non-divergent elements
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
-    R_e[ind] = g_e**2 * mat_diff[ind]/(4*np.exp(mat_diff[ind]/T_e)-4)
+    R_e[ind] = g_e**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_e)-1)/Mx/My
     return R_e
 
-def get_R_e_test(E, M, g_e, T_e, R_e, epsilon):
+def get_R_e_test(E, Mx, My, g_e, T_e, R_e, epsilon):
     """ A test routine for checking whether the calculation in get_R_e is 
     correct. Epsilon is the maximal accepted deviation between the results."""
-    R_e_test = np.zeros((M,M))
-    for i in range(M):
-        for j in range(M):
-            if i != j:
-                R_e_test[i,j] = g_e**2*(E[i] - E[j])/(4*np.exp((E[i] 
-                                                        - E[j])/T_e)-4)
+    R_e_test = np.zeros((Mx*My,Mx*My))
+    for i in range(Mx*My):
+        for j in range(Mx*My):
+            if np.abs(E[i]-E[j]) > 0:
+                R_e_test[i,j] = g_e**2*(E[i] - E[j])/(np.exp((E[i] 
+                                                        - E[j])/T_e)-1)/Mx/My
             else:
-                R_e_test[i,j] = g_e**2 * T_e/4
-    return np.abs(R_e_test - R_e) < epsilon
+                R_e_test[i,j] = g_e**2 * T_e/Mx/My
+    return np.all(np.abs(R_e_test - R_e) < epsilon)
 
-def get_R_h(E, M, l, g_h, T_h):
+def get_vec_sin(kx, ky, lx, ly):
+    """ Return a vector of all possible sin**2(kx lx)*sin**2(ky*ly) terms."""
+    # matrix with sine-terms. kx is constant in each column, ky in each row.
+    mat_sin = np.zeros((My,Mx))
+    for i in range(My):
+        for j in range(Mx):
+            mat_sin[i,j] = np.sin(kx[j]*lx)**2 * np.sin(ky[i]*ly)**2
+    vec_sin = mat_sin.reshape(My*Mx)
+    return vec_sin
+
+def get_R_h(E, Mx, My, lx, ly, g_h, T_h):
     """ Return the contribution of the hot needle to the transition rate."""
     # transform energy-vector into matrices
     mat_E_x, mat_E_y = np.meshgrid(E,E)    
     mat_diff = mat_E_y - mat_E_x        # matrix representing: E_i - E_j
         
     # leave out the sine-terms at first
-    R_h = np.ones((M,M))*g_h**2 * T_h   # matrix for transition rates
+    # matrix for transition rates
+    R_h = np.ones((Mx*My,Mx*My))*g_h**2 * T_h * 16/Mx/My 
     ind = np.abs(mat_diff) > 0          # indices of the non-divergent elements
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
     R_h[ind] = g_h**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_h)-1)
     
     # multiply the sine-terms
-    sin = np.sin(l*np.arange(1,M+1)*np.pi/(M+1))**2 # vector with sine-values sin(li)**2
+    sin = get_vec_sin(kx, ky, lx, ly) # vector with sine-values sin(li)**2
     # transform sine-vectors into matrices
     mat_sin_x, mat_sin_y = np.meshgrid(sin,sin)
     R_h *= mat_sin_x * mat_sin_y
@@ -200,59 +247,6 @@ def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
                 else:
                     return n
         print "Increased tmpN!"
-
-def plot_axT(T_e, M, mat_n):
-    """ Plots the occupation numbers for different environment temperatures."""
-    for i in range(M):
-        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')  
-        
-def plot_init_axK(T_c, T_e, E, k, M, mat_n):
-    """Plot """
-    global graph_K
-    global graph_BE
-    global vline
-    dist_T = np.abs(T_e - T_c)
-    ind_plot = np.arange(M)[dist_T == np.min(dist_T)][0]
-    T_plot = T_e[ind_plot]
-    vline = axT.axvline(T_plot, color='r')
-    vline_T_c = axT.axvline(T_c, color='g')      # static line at T_c
-    graph_K = axK.plot(k, mat_n[:,ind_plot], color='r')
-    graph_BE = axK.plot(k[1:], get_BE(T_plot, E, k), color='b')
-    
-def get_BE(T_e, E, k):
-    """ Plots the occupation numbers for different environment temperatures."""
-    n_BE = 1./(np.exp((E[1:]-E[0])/T_e)-1)
-    return n_BE
-
-def onMouseClick(event):
-    mode = plt.get_current_fig_manager().toolbar.mode
-    if  event.button == 1 and event.inaxes == axT and mode == '':
-        global graph_K
-        global graph_BE
-        global vline
-        # remove lines drawn before        
-        g = graph_K.pop(0)
-        g.remove()
-        del g
-        g = graph_BE.pop(0)
-        g.remove()
-        del g
-        vline.remove()
-        del vline    
-        
-        # find the clicked position and draw a vertical line
-        T_click = event.xdata
-        dist_T = np.abs(T_e - T_click)
-        ind_click = np.arange(N_T)[dist_T == np.min(dist_T)][0]
-        T_plot = T_e[ind_click]
-        vline = axT.axvline(T_plot, color='r')
-        
-        # plot n(k)
-        #print mat_n[:,ind_click]
-        graph_K = axK.plot(k, mat_n[:,ind_click], color='r')
-        graph_BE = axK.plot(k[1:], get_BE(T_plot, E, k), color='b')
-        # refreshing
-        fig.canvas.draw()
         
 
 #def main():
@@ -260,67 +254,46 @@ print __doc__
 
 # ------------------------------set parameters-----------------------------
 #---------------------------physical parameters--------------------------------
-J = 1.                              # dispersion-constant
-M = 150                             # system size (number of sites)
-n = 3                               # density
-N = n*M                             # number of particles
-l = 4                               # heated site
-g_h = 0.                            # coupling strength needle<->system
+Jx = 1.                             # dispersion-constant in x-direction
+Jy = 1.                             # dispersion-constant in y-direction   
+Mx = 5                            # system size in x-direction
+My = 2                              # system size in y-direction
+lx = 4                              # heated site (x-component)
+ly = 1                              # heated site (y-component)
+n = 3                               # particle density
+g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
-T_h = 60 * J                        # temperature of the needle
+T_h = 60 * Jx                        # temperature of the needle
+N = n*Mx*My                         # number of particles
+
+
 
 #----------------------------program parameters--------------------------------
 N_T = 100                           # number of temp. data-points
 tmpN_t = 4                          # number of temp. data-points in
                                     # temporary calculations
+epsilon = 10e-10                    # minimal accuracy for the compare-test
 tmpN_max = 256                      # maximal number of subslices
-T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
-T_c = 2 * J * n                     # critical temperature for BE-Cond.  
+T_e = 1.#np.logspace(-2,2,N_T)         # temperatures of the environment 
+ 
 
-#---------------------------global objects for plots---------------------------
-vline = None
-graph_K = None
-graph_BE = None
     
 #--------------calculate environment temp. independent parameters----------
-k = get_k(M)                        # vector of all quasimomenta
-E = get_E(J,k)                      # vector of all energyvalues
-R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
-print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-10))
+kx = get_k(Mx)                      # vector of all quasimomenta in x-dir
+ky = get_k(My)                      # vector of all quasimomenta in y-dir
+
+E = get_E(kx, ky, Jx, Jy, Mx, My)                      # vector of all energyvalues
+R_e = get_R_e(E, Mx, My, g_e, T_e)
+#print get_R_e_test(E, Mx, My, g_e, T_e, R_e, epsilon) 
+R_h = get_R_h(E, Mx, My, lx, ly, g_h, T_h)    # matrix with transition rates (needle)
+print R_h
+# print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-10))
     
 #-----calculate the occupation numbers in dependency of the temp-----------
-r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
-mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max)            
+#r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
+#mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max)            
 
-#-----------------------plot n_i(T_E)--------------------------------------
 
-fig = plt.figure("Mean-field occupation", figsize=(16,9))
-axT = fig.add_subplot(121)
-axT.set_xlabel(r'$T/J$')
-axT.set_ylabel(r'$\bar{n}_i$')
-axT.set_xlim([np.min(T_e), np.max(T_e)])
-axT.set_ylim([8*10e-5, 3*N])
-axT.set_xscale('log')
-axT.set_yscale('log')
-    
-axK = fig.add_subplot(122)
-axK.set_xlabel(r'$k/a$')
-axK.set_ylabel(r'$\bar{n}_i$')
-axK.set_xlim([0, np.pi])
-axK.set_ylim([8*10e-4, 3*N])
-axK.set_yscale('log')
-
-# connect plotting window with the onClick method
-cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
-
-# plot initial lines    
-plot_axT(T_e, M, mat_n)
-plot_init_axK(T_c, T_e, E, k, M, mat_n)
-# refreshing
-fig.canvas.draw()
-    
-matplotlib.rcParams.update({'font.size': 18})
-plt.show()
               
 #if __name__ == '__main__':
 #   main()
