@@ -23,17 +23,22 @@ def get_k(M):
     in the first Brillouin zone."""
     k = np.arange(1,M+1)*np.pi/(M+1)    # vector of all possible quasimomenta
     return k
-    
-def get_E(kx, ky, Jx, Jy, Mx, My):
-    """ Return the energy E at given quasimomenta kx, ky with the 
-    dispersion relation. """
-    # matrix with energies. kx is constant in each column, ky in each row.
-    E = np.zeros((My,Mx))
+
+def get_vec_k(kx, ky, Mx, My):
+    """ Return a vector with tuples (kx,ky) of quasimomenta."""   
+    # structured data type: vector of tuples of 64-bit floats
+    k = np.zeros(Mx*My, dtype=[('kx','f8'),('ky','f8')])
     for i in range(My):
-        for j in range(Mx):
-            E[i,j] = -2*(Jx*np.cos(kx)[j]+Jy*np.cos(ky[i]))
-    vecE = E.reshape(My*Mx)
-    return vecE
+        for j in range(Mx):            
+            k[i*Mx + j] = (kx[j],ky[i])
+    return k 
+    
+def get_E(k, Jx, Jy, Mx, My):
+    """ Return a vector with the energy E at given quasimomenta kx, ky with the 
+    dispersion relation."""
+    E = np.zeros(Mx*My)
+    E = -2*(Jx*np.cos(k['kx'])+Jy*np.cos(k['ky']))
+    return E
     
 def getIndexMat(A, i, j, retVec=False):
     """ Let A be a m x n matrix. This function returns the index of the
@@ -92,17 +97,13 @@ def get_R_e_test(E, Mx, My, g_e, T_e, R_e, epsilon):
                 R_e_test[i,j] = g_e**2 * T_e/Mx/My
     return np.all(np.abs(R_e_test - R_e) < epsilon)
 
-def get_vec_sin(kx, ky, lx, ly):
+def get_vec_sin(k, Mx, My, lx, ly):
     """ Return a vector of all possible sin**2(kx lx)*sin**2(ky*ly) terms."""
-    # matrix with sine-terms. kx is constant in each column, ky in each row.
-    mat_sin = np.zeros((My,Mx))
-    for i in range(My):
-        for j in range(Mx):
-            mat_sin[i,j] = np.sin(kx[j]*lx)**2 * np.sin(ky[i]*ly)**2
-    vec_sin = mat_sin.reshape(My*Mx)
-    return vec_sin
+    sin = np.zeros(Mx*My)
+    sin = np.sin(k['kx']*lx)**2 * np.sin(k['ky']*ly)**2
+    return sin
 
-def get_R_h(E, Mx, My, lx, ly, g_h, T_h):
+def get_R_h(E, Mx, My, lx, ly, kx, ky, k, g_h, T_h):
     """ Return the contribution of the hot needle to the transition rate."""
     # transform energy-vector into matrices
     mat_E_x, mat_E_y = np.meshgrid(E,E)    
@@ -117,9 +118,9 @@ def get_R_h(E, Mx, My, lx, ly, g_h, T_h):
     R_h[ind] = g_h**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_h)-1)
     
     # multiply the sine-terms
-    sin = get_vec_sin(kx, ky, lx, ly) # vector with sine-values sin(li)**2
+    vec_sin = get_vec_sin(k, Mx, My, lx, ly) 
     # transform sine-vectors into matrices
-    mat_sin_x, mat_sin_y = np.meshgrid(sin,sin)
+    mat_sin_x, mat_sin_y = np.meshgrid(vec_sin, vec_sin)
     R_h *= mat_sin_x * mat_sin_y
     
     return R_h
@@ -281,12 +282,20 @@ T_e = 1.#np.logspace(-2,2,N_T)         # temperatures of the environment
 #--------------calculate environment temp. independent parameters----------
 kx = get_k(Mx)                      # vector of all quasimomenta in x-dir
 ky = get_k(My)                      # vector of all quasimomenta in y-dir
+print kx
+print ky
 
-E = get_E(kx, ky, Jx, Jy, Mx, My)                      # vector of all energyvalues
-R_e = get_R_e(E, Mx, My, g_e, T_e)
+k = get_vec_k(kx, ky, Mx, My)       # vector of tuples of (kx,ky)
+print k
+
+E = get_E(k, Jx, Jy, Mx, My)        # vector of all energyeigenvalues
+print E
+
+R_e = get_R_e(E, Mx, My, g_e, T_e)  # rate-matrix of the environment
 #print get_R_e_test(E, Mx, My, g_e, T_e, R_e, epsilon) 
-R_h = get_R_h(E, Mx, My, lx, ly, g_h, T_h)    # matrix with transition rates (needle)
-print R_h
+R_h = get_R_h(E, Mx, My, lx, ly, kx, ky, k, g_h, T_h)    # matrix with transition rates (needle)
+print np.shape(R_h)
+#print R_h
 # print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-10))
     
 #-----calculate the occupation numbers in dependency of the temp-----------
