@@ -261,10 +261,10 @@ print __doc__
 # ------------------------------set parameters-----------------------------
 #---------------------------physical parameters--------------------------------
 J = 1.                              # dispersion-constant
-M = 200                             # system size (number of sites)
+M = 150                             # system size (number of sites)
 n = 3                               # density
 N = n*M                             # number of particles
-l = 4.                               # heated site
+l = 2.                               # heated site
 g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
 T_h = 60 * J                        # temperature of the needle

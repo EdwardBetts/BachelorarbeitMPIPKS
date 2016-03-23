@@ -17,6 +17,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import fsolve
 import matplotlib
+import matplotlib.cm as cm
 
 def get_k(M):
     """ Return all M possible quasimomenta of a 1D tight binding chain
@@ -78,7 +79,7 @@ def get_R_e(E, M, g_e, T_e):
     mat_diff = mat_E_y - mat_E_x        # matrix representing: E_i - E_j
     # matrix for transition rates
     R_e = np.ones((M,M))* g_e**2 * T_e 
-    ind = np.abs(mat_diff) > 10e-10          # indices of the non-divergent elements
+    ind = np.abs(mat_diff) > 10e-6          # indices of the non-divergent elements
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
     R_e[ind] = g_e**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_e)-1)
@@ -112,7 +113,7 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
     # leave out the sine-terms at first
     # matrix for transition rates
     R_h = np.ones((M,M))*g_h**2 * T_h * 16 
-    ind = np.abs(mat_diff) > 10e-10          # indices of the non-divergent elements
+    ind = np.abs(mat_diff) > 10e-6          # indices of the non-divergent elements
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
     R_h[ind] = g_h**2 *16* mat_diff[ind]/(np.exp(mat_diff[ind]/T_h)-1)
@@ -179,7 +180,7 @@ def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
             n[0], n[1:] = n1 , solution[0] 
             if np.any(n<0.):                # if solution is unphysical      
                 print "Needed to repeat calculation at Temperature T_e =", T_e[-i-1],\
-                        "with index i = ", i
+                        "with index i = ", N_T-i-1
                 n = get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
                 if n == None:
                     print "Calculation failed! You may choose a larger tmpN_max."
@@ -189,6 +190,7 @@ def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
             else:
                 r_0 = solution[0]
             mat_n[:,-i-1] = n
+    print "Calculation of the occupation numbers successful!" 
     return mat_n
 
 def get_tmpT(T_e, i, tmpN_t):
@@ -230,7 +232,7 @@ def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
                 n = np.zeros(M)            # vector of all occupation numbers
                 n[0], n[1:] = n1 , solution[0] 
                 if np.any(n<0.):           # if solution is unphysical        
-                    tmpN_t *= 4           # increase num of sample points
+                    tmpN_t *= 4            # increase num of sample points
                     print "Increased tmpN because of an unphysical solution!"
                     break
                 elif j!= tmpN_t-1:         # if iteration is not finished
@@ -245,36 +247,56 @@ def plot_axT(T_e, M, mat_n):
     for i in range(M):
         axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')  
 
-def onMouseClick(event):
-    mode = plt.get_current_fig_manager().toolbar.mode
-    if  event.button == 1 and event.inaxes == axT and mode == '':
-        global vline
+def plot_axK(T_inp, T_e, N_T, mat_n, cb_min, cb_max, kx, ky):
+    """ Draw a contourline-plot of the occupation numbers in dependency on
+        the quasimomenta kx, ky for fixed enironment temperature T_inp.
+        This routine also draws a vertical line at T_inp in axT."""
+    global graph_K
+    global vline
+    # remove lines drawn before        
+    if graph_K != None:    
+        graph_K.remove()
+        del graph_K
+    if vline != None:
         vline.remove()
         del vline 
+    # distance between T_e and the input temperature
+    dist_T = np.abs(T_e - T_inp)
+    # index of the element of T_e that is nearest to T_inp            
+    ind_plot = np.arange(N_T)[dist_T == np.min(dist_T)][0]
+    # environment temperature choosed for plotting
+    T_plot = T_e[ind_plot]
+    # draw a vertical line at T_plot
+    vline = axT.axvline(T_plot, color='r')
+    
+    # contourmatrix of occupation numbers n(k)(inverted in y-direction)
+    plot_mat_n = mat_n[:,ind_plot].reshape((len(ky),len(kx)))[::-1,:]
+    graph_K = axK.imshow(plot_mat_n, interpolation = 'None', cmap = cm.YlOrRd,
+                 norm=matplotlib.colors.LogNorm(cb_min, cb_max), 
+                 extent = [kx[0],kx[Mx-1],ky[0],ky[My-1]])         
+
+def onMouseClick(event):
+    """ Implements the click interactions of the user.
+        T_e, k_x and k_y shall be chooseable by the user."""
+    mode = plt.get_current_fig_manager().toolbar.mode
+    if  event.button == 1 and event.inaxes == axT and mode == '':
         # find the clicked position and draw a vertical line
         T_click = event.xdata
-        dist_T = np.abs(T_e - T_click)
-        ind_click = np.arange(N_T)[dist_T == np.min(dist_T)][0]
-        T_plot = T_e[ind_click]
-        vline = axT.axvline(T_plot, color='r')
-        print mat_n[:,ind_click]
+        plot_axK(T_click, T_e, N_T, mat_n, cb_min, cb_max, kx, ky)
         # refreshing
         fig.canvas.draw()
     
-
-        
-
 #def main():
 print __doc__
 
-# ------------------------------set parameters-----------------------------
+# ------------------------------set parameters--------------------------------
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
 Mx = 10                            # system size in x-direction
-My = 1                              # system size in y-direction
-lx = 4.                              # heated site (x-component)
-ly = 1.                              # heated site (y-component)
+My = 10                              # system size in y-direction
+lx = 2.                              # heated site (x-component)
+ly = 2.                              # heated site (y-component)
 n = 3                               # particle density
 g_h = 0.5                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
@@ -289,29 +311,47 @@ tmpN_t = 4                          # number of temp. data-points in
 epsilon = 10e-10                    # minimal accuracy for the compare-test
 tmpN_max = 256                      # maximal number of subslices
 T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
+r_0 = n * np.ones((M)-1)            # initial guess for n2,...,n_m
+
+#--------------------------plot parameters-------------------------------------
+graph_K = None                      # initialise graph at axK
+vline = None                        # initialise vertical line at axT
+cb_min = 10e-4                      # minimal value of the colorbar (axK)<->0
+cb_max = N                          # maximal value of the colorbar (axK)<->1
+nticks_cb = 5                       # number of ticks at colorbar (axK)
+T_init = T_e[N_T/2]                 # initial env- temperature for plotting
 
 
     
 #--------------calculate environment temp. independent parameters----------
 kx = get_k(Mx)                      # vector of all quasimomenta in x-dir
 ky = get_k(My)                      # vector of all quasimomenta in y-dir
-
+kx_init = kx[0]                     # initial quasimomentum in x-dir
+ky_init = ky[0]                     # initial quasimomentum in y-dir
 k = get_vec_k(kx, ky, Mx, My)       # vector of tuples of (kx,ky)
-print k
+E = get_E(k, Jx, Jy, M)             # vector of all energyeigenvalues
 
-E = get_E(k, Jx, Jy, M)        # vector of all energyeigenvalues
+R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
+              ky, k, g_h, T_h)    
 
+print "Started calculation of the occupation numbers..."    
+#-----------------------calculate occupation numbers---------------------------
+mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
+                  N, E, g_e, R_h,   # T_e is const. in each column
+                  tmpN_t, tmpN_max) # n_i is const in each row
 
-#print get_R_e_test(E, M, g_e, T_e, R_e, epsilon) 
-R_h = get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h)    # matrix with transition rates (needle)
+#------------------------set - up plotting windows-----------------------------
+fig = plt.figure("Mean-field occupation", figsize=(16,12))
 
-    
-#-----calculate the occupation numbers in dependency of the temp-----------
-r_0 = n * np.ones((M)-1)              # initial guess for n2,...,n_m
-mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max) 
+# plotting window for n(kx,ky)
+axK = fig.add_subplot(122)
+axK.set_xlabel("kx")
+axK.set_ylabel("ky")
+axK.set_xlim([kx[0],kx[Mx-1]])
+axK.set_ylim([ky[0],ky[My-1]])
 
-fig = plt.figure("Mean-field occupation", figsize=(16,9))
-axT = fig.add_subplot(111)
+# plotting window for n(T_e)
+axT = fig.add_subplot(121)
 axT.set_xlabel(r'$T/J$')
 axT.set_ylabel(r'$\bar{n}_i$')
 axT.set_xlim([np.min(T_e), np.max(T_e)])
@@ -319,17 +359,16 @@ axT.set_ylim([8*10e-5, 3*N])
 axT.set_xscale('log')
 axT.set_yscale('log')
 
-# connect plotting window with the onClick method
-cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
-
-# initial line
-vline = axT.axvline(0, color='r')
-
+# initial plots on program start
+plot_axK(T_init, T_e, N_T, mat_n, cb_min, cb_max, kx, ky)
 plot_axT(T_e, M, mat_n)
+# set-up-colorbar at axK
+t = np.logspace(np.log10(cb_min),np.log10(cb_max), num=nticks_cb)
+cb_axK = fig.colorbar(graph_K, ax=axK, ticks=t, format='$%.1e$')
 
-# refreshing
-fig.canvas.draw()
-    
+# connect plotting window with the onClick method
+cid = fig.canvas.mpl_connect('button_press_event', onMouseClick) 
+# optimize font-size   
 matplotlib.rcParams.update({'font.size': 18})
 plt.show()
               
