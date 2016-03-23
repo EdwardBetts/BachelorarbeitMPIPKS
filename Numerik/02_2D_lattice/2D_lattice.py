@@ -41,37 +41,6 @@ def get_E(k, Jx, Jy, M):
     E = -2*(Jx*np.cos(k['kx'])+Jy*np.cos(k['ky']))
     return E
     
-def getIndexMat(A, i, j, retVec=False):
-    """ Let A be a m x n matrix. This function returns the index of the
-    element A_{i,j} by counting the elements rowwise.
-    This function is sensefull for transforming A into a vector.
-    If retVec is set True this function also returns the transformed matrix."""
-    numRowsA = np.shape(A)[1]                 # number of rows of A  
-    vecInd = i * numRowsA + j                 # index of the element in vector
-    if not retVec: 
-        return vecInd
-    else:
-        numColsA = np.shape(A)[0]              # number of colums of A 
-        vecA = np.reshape(A,numColsA*numRowsA) # vectorized matrix A
-        return vecInd, vecA
-
-def getIndexVec(a, i, m, n, retMat=False):
-    """ Let a be a n vector. This function returns the indices (j,k) of 
-    element a_i if a is transformed into matrix A (m x n). The elements of 
-    A are counted rowwise.
-    This function is sensefull for transforming a into a matrix.
-    If retMat is set True this function also returns the transformed vector."""
-    if len(a) == m*n:
-        rowInd = int(i)/int(n)                  # row index of the element
-        colInd = int(i)%int(n)                  # colum index of the element    
-        if not retMat:
-            return rowInd, colInd
-        else:
-            matA = np.reshape(a,(m,n))          # vector a -> matrix A
-            return rowInd, colInd, matA
-    else:
-        print "Vector and matrix must have the same dimensions!"
-    
 def get_R_e(E, M, g_e, T_e):
     """ Return the contribution of the environment to the transition rate."""
     # transform energy-vector into matrices
@@ -247,19 +216,21 @@ def plot_axT(T_e, M, mat_n):
     for i in range(M):
         axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')  
 
-def plot_axK(T_inp, T_e, N_T, mat_n, cb_min, cb_max, kx, ky):
+def plot_axK(T_inp, T_e, N_T, mat_n, n_min, n_max, kx, ky):
     """ Draw a contourline-plot of the occupation numbers in dependency on
         the quasimomenta kx, ky for fixed enironment temperature T_inp.
         This routine also draws a vertical line at T_inp in axT."""
     global graph_K
-    global vline
+    global vline_T
+    # use global plot_mat_n for using it in other procedures
+    global plot_mat_n
     # remove lines drawn before        
     if graph_K != None:    
         graph_K.remove()
         del graph_K
-    if vline != None:
-        vline.remove()
-        del vline 
+    if vline_T != None:
+        vline_T.remove()
+        del vline_T 
     # distance between T_e and the input temperature
     dist_T = np.abs(T_e - T_inp)
     # index of the element of T_e that is nearest to T_inp            
@@ -267,13 +238,61 @@ def plot_axK(T_inp, T_e, N_T, mat_n, cb_min, cb_max, kx, ky):
     # environment temperature choosed for plotting
     T_plot = T_e[ind_plot]
     # draw a vertical line at T_plot
-    vline = axT.axvline(T_plot, color='r')
+    vline_T = axT.axvline(T_plot, color='r')
     
-    # contourmatrix of occupation numbers n(k)(inverted in y-direction)
-    plot_mat_n = mat_n[:,ind_plot].reshape((len(ky),len(kx)))[::-1,:]
-    graph_K = axK.imshow(plot_mat_n, interpolation = 'None', cmap = cm.YlOrRd,
-                 norm=matplotlib.colors.LogNorm(cb_min, cb_max), 
-                 extent = [kx[0],kx[Mx-1],ky[0],ky[My-1]])         
+    # contourmatrix of occupation numbers n(k)
+    plot_mat_n = mat_n[:,ind_plot].reshape((len(ky),len(kx)))
+    # create contourplot and mirror the matrix in y-direction
+    graph_K = axK.imshow(plot_mat_n[::-1,:], interpolation = 'None', cmap = cm.YlOrRd,
+                 norm=matplotlib.colors.LogNorm(n_min, n_max), 
+                 extent = [kx[0],kx[Mx-1],ky[0],ky[My-1]]) 
+
+def plot_n_k(k, kx, ky, kx_inp, ky_inp, n):
+    """ Draw n(kx|ky) and n(kx|ky) at given environmental temperature T_e
+        and given k= (kx,ky). n ist the matrix of occupation numbers at
+        fixed temperature T_e. kx is constant over each column, ky in each row.
+    """
+    global vline_K
+    global hline_K
+    global graph_kx
+    global graph_ky
+    # use global kx, ky for saving the clicked position
+    global kx_plot
+    global ky_plot
+    # remove old graphs
+    if vline_K != None:
+        vline_K.remove()
+        del vline_K
+    if hline_K != None:
+        hline_K.remove()
+        del hline_K 
+    if graph_kx != None:
+        g = graph_kx.pop(0)
+        g.remove()
+        del g
+    if graph_ky != None:
+        g = graph_ky.pop(0)
+        g.remove()
+        del g
+    # distance between all k and the input  momentum
+    dist_kx = np.abs(k['kx'] - kx_inp)
+    dist_ky = np.abs(k['ky'] - ky_inp)
+    # index of the element of k that is nearest to k_inp            
+    ind_plot_kx = np.arange(len(k['kx']))[dist_kx == np.min(dist_kx)][0]
+    ind_plot_ky = np.arange(len(k['ky']))[dist_ky == np.min(dist_ky)][0]
+    # momentum choosed for plotting
+    kx_plot = k['kx'][ind_plot_kx]
+    ky_plot = k['ky'][ind_plot_ky]
+    vline_K = axK.axvline(kx_plot, color='g')
+    hline_K = axK.axhline(ky_plot, color='g')
+    
+    # occupation number at fixed ky in dependency of kx
+    n_kx = n[ind_plot_ky/Mx,:]
+    # occupation number at fixed kx in dependency of ky        
+    n_ky = n[:,ind_plot_kx%Mx]
+    graph_kx = axKx.plot(kx,n_kx, color='g')
+    graph_ky = axKy.plot(n_ky,ky, color='g')
+    
 
 def onMouseClick(event):
     """ Implements the click interactions of the user.
@@ -282,9 +301,16 @@ def onMouseClick(event):
     if  event.button == 1 and event.inaxes == axT and mode == '':
         # find the clicked position and draw a vertical line
         T_click = event.xdata
-        plot_axK(T_click, T_e, N_T, mat_n, cb_min, cb_max, kx, ky)
-        # refreshing
-        fig.canvas.draw()
+        plot_axK(T_click, T_e, N_T, mat_n, n_min, n_max, kx, ky)
+        plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n)
+        
+    elif event.button == 1 and event.inaxes == axK and mode == '':
+        # find the clicked position
+        kx_click = event.xdata
+        ky_click = event.ydata
+        plot_n_k(k, kx, ky, kx_click, ky_click, plot_mat_n)
+    # refreshing
+    fig.canvas.draw()
     
 #def main():
 print __doc__
@@ -293,16 +319,16 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 10                            # system size in x-direction
-My = 10                              # system size in y-direction
-lx = 2.                              # heated site (x-component)
-ly = 2.                              # heated site (y-component)
+Mx = 100                             # system size in x-direction
+My = 2                             # system size in y-direction
+lx = 4.                             # heated site (x-component)
+ly = 1.                             # heated site (y-component)
 n = 3                               # particle density
-g_h = 0.5                            # coupling strength needle<->system
+g_h = 0.5                           # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
-T_h = 60*Jx                        # temperature of the needle
+T_h = 60*Jx                         # temperature of the needle
 M = Mx * My                         # new 2D-system size
-N = n*M                         # number of particles
+N = n*M                             # number of particles
 
 #----------------------------program parameters--------------------------------
 N_T = 150                           # number of temp. data-points
@@ -315,19 +341,22 @@ r_0 = n * np.ones((M)-1)            # initial guess for n2,...,n_m
 
 #--------------------------plot parameters-------------------------------------
 graph_K = None                      # initialise graph at axK
-vline = None                        # initialise vertical line at axT
-cb_min = 10e-4                      # minimal value of the colorbar (axK)<->0
-cb_max = N                          # maximal value of the colorbar (axK)<->1
+vline_T = None                      # initialise vertical line at axT
+vline_K = None                      # initialise vertical line at axK
+hline_K = None                      # initialise horizontal line at axK
+plot_mat_n = None                   # occupation number at fixed T_e
+graph_kx = None                     # initialise graph at axKx
+graph_ky = None                     # initialise graph at axKy
+n_min = 10e-4                       # minimal value of the occupation number
+n_max = N                           # maximal value of the occupation number
 nticks_cb = 5                       # number of ticks at colorbar (axK)
 T_init = T_e[N_T/2]                 # initial env- temperature for plotting
 
-
-    
 #--------------calculate environment temp. independent parameters----------
 kx = get_k(Mx)                      # vector of all quasimomenta in x-dir
 ky = get_k(My)                      # vector of all quasimomenta in y-dir
-kx_init = kx[0]                     # initial quasimomentum in x-dir
-ky_init = ky[0]                     # initial quasimomentum in y-dir
+kx_plot = kx[2]                     # initial quasimomentum in x-dir
+ky_plot = ky[0]                     # initial quasimomentum in y-dir
 k = get_vec_k(kx, ky, Mx, My)       # vector of tuples of (kx,ky)
 E = get_E(k, Jx, Jy, M)             # vector of all energyeigenvalues
 
@@ -344,26 +373,43 @@ mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
 fig = plt.figure("Mean-field occupation", figsize=(16,12))
 
 # plotting window for n(kx,ky)
-axK = fig.add_subplot(122)
-axK.set_xlabel("kx")
-axK.set_ylabel("ky")
+axK = fig.add_subplot(221)
+axK.set_xlabel(r"$k_x$")
+axK.set_ylabel(r"$k_y$")
 axK.set_xlim([kx[0],kx[Mx-1]])
 axK.set_ylim([ky[0],ky[My-1]])
 
+# plotting window for n(ky|kx)
+axKy = fig.add_subplot(222)
+axKy.set_xlabel(r'$\bar{n}_i$')
+axKy.set_ylabel(r"$k_x$")
+axKy.set_xlim([n_min,n_max])
+axKy.set_xscale('log')
+axKy.set_ylim([ky[0],ky[My-1]])
+
+# plotting window for n(kx|ky)
+axKx = fig.add_subplot(223)
+axKx.set_xlabel(r"$k_x$")
+axKx.set_ylabel(r'$\bar{n}_i$')
+axKx.set_xlim([kx[0],kx[Mx-1]])
+axKx.set_ylim([n_min,n_max])
+axKx.set_yscale('log')
+
 # plotting window for n(T_e)
-axT = fig.add_subplot(121)
+axT = fig.add_subplot(224)
 axT.set_xlabel(r'$T/J$')
 axT.set_ylabel(r'$\bar{n}_i$')
 axT.set_xlim([np.min(T_e), np.max(T_e)])
-axT.set_ylim([8*10e-5, 3*N])
+axT.set_ylim([n_min, n_max])
 axT.set_xscale('log')
 axT.set_yscale('log')
 
 # initial plots on program start
-plot_axK(T_init, T_e, N_T, mat_n, cb_min, cb_max, kx, ky)
+plot_axK(T_init, T_e, N_T, mat_n, n_min, n_max, kx, ky)
 plot_axT(T_e, M, mat_n)
+plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n)
 # set-up-colorbar at axK
-t = np.logspace(np.log10(cb_min),np.log10(cb_max), num=nticks_cb)
+t = np.logspace(np.log10(n_min),np.log10(n_max), num=nticks_cb)
 cb_axK = fig.colorbar(graph_K, ax=axK, ticks=t, format='$%.1e$')
 
 # connect plotting window with the onClick method
