@@ -206,13 +206,13 @@ def plot_axT(T_e, M, mat_n):
     for i in range(M):
         axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')  
         
-def plot_init_axK(T_c, T_e, E, k, M, mat_n):
+def plot_init_axK(T_c, T_e, E, k, N_T, mat_n):
     """Plot """
     global graph_K
     global graph_BE
     global vline
     dist_T = np.abs(T_e - T_c)
-    ind_plot = np.arange(M)[dist_T == np.min(dist_T)][0]
+    ind_plot = np.arange(N_T)[dist_T == np.min(dist_T)][0]
     T_plot = T_e[ind_plot]
     vline = axT.axvline(T_plot, color='r')
     vline_T_c = axT.axvline(T_c, color='g')      # static line at T_c
@@ -261,7 +261,7 @@ print __doc__
 # ------------------------------set parameters-----------------------------
 #---------------------------physical parameters--------------------------------
 J = 1.                              # dispersion-constant
-M = 300                             # system size (number of sites)
+M = 200                             # system size (number of sites)
 n = 3                               # density
 N = n*M                             # number of particles
 l = 4.                               # heated site
@@ -315,7 +315,7 @@ cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
 
 # plot initial lines    
 plot_axT(T_e, M, mat_n)
-plot_init_axK(T_c, T_e, E, k, M, mat_n)
+plot_init_axK(T_c, T_e, E, k, N_T, mat_n)
 # refreshing
 fig.canvas.draw()
     

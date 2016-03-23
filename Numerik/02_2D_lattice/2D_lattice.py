@@ -244,6 +244,24 @@ def plot_axT(T_e, M, mat_n):
     """ Plots the occupation numbers for different environment temperatures."""
     for i in range(M):
         axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')  
+
+def onMouseClick(event):
+    mode = plt.get_current_fig_manager().toolbar.mode
+    if  event.button == 1 and event.inaxes == axT and mode == '':
+        global vline
+        vline.remove()
+        del vline 
+        # find the clicked position and draw a vertical line
+        T_click = event.xdata
+        dist_T = np.abs(T_e - T_click)
+        ind_click = np.arange(N_T)[dist_T == np.min(dist_T)][0]
+        T_plot = T_e[ind_click]
+        vline = axT.axvline(T_plot, color='r')
+        print mat_n[:,ind_click]
+        # refreshing
+        fig.canvas.draw()
+    
+
         
 
 #def main():
@@ -253,12 +271,12 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 30                            # system size in x-direction
-My = 10                              # system size in y-direction
-lx = 6.                              # heated site (x-component)
-ly = 5.                              # heated site (y-component)
+Mx = 10                            # system size in x-direction
+My = 1                              # system size in y-direction
+lx = 4.                              # heated site (x-component)
+ly = 1.                              # heated site (y-component)
 n = 3                               # particle density
-g_h = 1.                            # coupling strength needle<->system
+g_h = 0.5                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
 T_h = 60*Jx                        # temperature of the needle
 M = Mx * My                         # new 2D-system size
@@ -271,12 +289,15 @@ tmpN_t = 4                          # number of temp. data-points in
 epsilon = 10e-10                    # minimal accuracy for the compare-test
 tmpN_max = 256                      # maximal number of subslices
 T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
+
+
     
 #--------------calculate environment temp. independent parameters----------
 kx = get_k(Mx)                      # vector of all quasimomenta in x-dir
 ky = get_k(My)                      # vector of all quasimomenta in y-dir
 
 k = get_vec_k(kx, ky, Mx, My)       # vector of tuples of (kx,ky)
+print k
 
 E = get_E(k, Jx, Jy, M)        # vector of all energyeigenvalues
 
@@ -297,6 +318,12 @@ axT.set_xlim([np.min(T_e), np.max(T_e)])
 axT.set_ylim([8*10e-5, 3*N])
 axT.set_xscale('log')
 axT.set_yscale('log')
+
+# connect plotting window with the onClick method
+cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
+
+# initial line
+vline = axT.axvline(0, color='r')
 
 plot_axT(T_e, M, mat_n)
 
