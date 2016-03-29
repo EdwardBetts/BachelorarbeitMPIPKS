@@ -356,10 +356,10 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 150                             # system size in x-direction
-My = 2                             # system size in y-direction
-lx = 4.                             # heated site (x-component)
-ly = 2.                             # heated site (y-component)
+Mx = 30                             # system size in x-direction
+My = 31                             # system size in y-direction
+lx = 3.                             # heated site (x-component)
+ly = 4.                             # heated site (y-component)
 n = 3                               # particle density
 g_h = 1.                           # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
