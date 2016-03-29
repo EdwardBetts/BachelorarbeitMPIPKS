@@ -142,14 +142,14 @@ def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
         #-----------solve the nonlinear system of equations--------------------    
         solution = fsolve(func, r_0,args=data, full_output=1)
         if solution[2] == 0:                # if sol. didnt conv., repeat calcul.
-            print i
+            
         else:
             n1 = get_n1(solution[0],N) # occupation number of the ground state
             n = np.zeros(M)                 # vector of all occupation numbers
             n[0], n[1:] = n1 , solution[0] 
             if np.any(n<0.):                # if solution is unphysical      
-                print "Needed to repeat calculation at Temperature T_e =", T_e[-i-1],\
-                        "with index i = ", N_T-i-1
+               # print "Needed to repeat calculation at Temperature T_e =", T_e[-i-1],\
+                #        "with index i = ", N_T-i-1
                 n = get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
                 if n == None:
                     print "Calculation failed! You may choose a larger tmpN_max."
@@ -159,10 +159,10 @@ def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
             else:
                 r_0 = solution[0]
             mat_n[:,-i-1] = n
-        if i % 10 == 0:
-           print "Calculated {0:.2f}%".format(100*np.float64(i)/N_T) 
+        #if i % 10 == 0:
+         #  print "Calculated {0:.2f}%".format(100*np.float64(i)/N_T) 
         
-    print "Calculation of the occupation numbers successful!" 
+    #print "Calculation of the occupation numbers successful!" 
     return mat_n
 
 def get_tmpT(T_e, i, tmpN_t):
@@ -175,6 +175,28 @@ def get_tmpT(T_e, i, tmpN_t):
         tmpT = np.logspace(np.log10(T_e[-i-1]), np.log10(T_e[-i]), num= tmpN_t,
                            endpoint = True)
         return tmpT
+    
+def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, tmpN_t, tmpN_max, axM):
+    mat_n_M = np.zeros((N_T,len(Mx)))    
+    for i in range(len(Mx)):
+        M = Mx[i] * My                         # total number of sizes
+        r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
+        N = n*M                             # particle number 
+        
+        kx = get_k(int(Mx[i]))                      # vector of all quasimomenta in x-dir
+        ky = get_k(My)                      # vector of all quasimomenta in y-dir
+        k = get_vec_k(kx, ky, int(Mx[i]), My)       # vector of tuples of (kx,ky)
+        E = get_E(k, Jx, Jy, M)             # vector of all energyeigenvalues
+        R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
+                      ky, k, g_h, T_h)                           # particle number
+        mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
+                      N, E, g_e, R_h,       # T_e is const. in each column
+                      tmpN_t, tmpN_max)     # n_i is const in each row 
+        # determine index of condensate state (at T_e[0])
+        ind_max = np.argmax(mat_n, axis=0)[0]
+        mat_n_M[:,i] = mat_n[ind_max,:]/N
+    return mat_n_M
+    
 
 def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
     """ If the calculation in get_mat_n throws an invalid value for a 
@@ -222,10 +244,10 @@ def main():
     #---------------------------physical parameters--------------------------------
     Jx = 1.                             # dispersion-constant in x-direction
     Jy = 1.                             # dispersion-constant in y-direction   
-    Mx = 50                             # system size in x-direction
-    My = 3                             # system size in y-direction
+    Mx = np.logspace(0,2,50)            # system size in x-direction
+    My = 1                             # system size in y-direction
     lx = 4.                             # heated site (x-component)
-    ly = 2.                             # heated site (y-component)
+    ly = 1.                             # heated site (y-component)
     n = 3                               # particle density
     g_h = 1.                           # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
@@ -240,33 +262,23 @@ def main():
     epsilon = 10e-10                    # minimal accuracy for the compare-test
     tmpN_max = 256                      # maximal number of subslices
     T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
-    r_0 = n * np.ones((M)-1)            # initial guess for n2,...,n_m
+    n_min = 0                       # minimal value of the occupation number
+    n_max = 1                           # maximal value of the occupation number
+    M_min = np.min(Mx)
+    M_max = np.max(Mx)
+    T_min = T_e[0]
+    T_max = T_e[-1]
     
-    #--------------------------plot parameters-------------------------------------
-    n_min = 10e-3                       # minimal value of the occupation number
-    n_max = N                           # maximal value of the occupation number
-    nticks_cb = 5                       # number of ticks at colorbar (axK)
-    T_plot = T_e[N_T/2]                 # initial env- temperature for plotting
-    k_min = 0                           # lower bound for quasimomenta in plots
-    k_max = np.pi                       # upper bound for quasimomenta in plots
+    
     
     #--------------calculate environment temp. independent parameters----------
-    kx = get_k(Mx)                      # vector of all quasimomenta in x-dir
-    ky = get_k(My)                      # vector of all quasimomenta in y-dir
-    kx_plot = kx[2]                     # initial quasimomentum in x-dir
-    ky_plot = ky[0]                     # initial quasimomentum in y-dir
-    k = get_vec_k(kx, ky, Mx, My)       # vector of tuples of (kx,ky)
     
-    E = get_E(k, Jx, Jy, M)             # vector of all energyeigenvalues
-    
-    R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
-                  ky, k, g_h, T_h)    
     
     print "Started calculation of the occupation numbers..."    
     #-----------------------calculate occupation numbers---------------------------
-    mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
-                      N, E, g_e, R_h,   # T_e is const. in each column
-                      tmpN_t, tmpN_max) # n_i is const in each row
+    #mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
+     #                 N, E, g_e, R_h,   # T_e is const. in each column
+      #                tmpN_t, tmpN_max) # n_i is const in each row
     
     #------------------------set - up plotting windows-----------------------------
     fig = plt.figure("Mean-field occupation", figsize=(16,14))
@@ -275,10 +287,17 @@ def main():
     axM = fig.add_subplot(111)
     axM.set_xlabel(r"M")
     axM.set_ylabel(r"T")
-    axM.set_xlim([1,10e3])
-    axM.set_ylim([10e-2,10e2])
+    axM.set_xlim([M_min,M_max])
+    axM.set_ylim([T_min,T_max])
     axM.set_xscale('log')
     axM.set_yscale('log')
+    
+    mat_M_n = get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, 
+                          T_e, N_T, tmpN_t, tmpN_max, axM)
+    norm = cm.colors.Normalize(vmax=1, vmin=0)
+    graph_M = axM.imshow(mat_M_n[::-1],interpolation = 'None', cmap = cm.binary, 
+               norm =norm, extent = [M_min, M_max, T_min,T_max])
+    cb_axE = fig.colorbar(graph_M,ticks=[0, 0.5, 1],ax=axM, format='%.1f')
 
     # optimize font-size   
     matplotlib.rcParams.update({'font.size': 16})

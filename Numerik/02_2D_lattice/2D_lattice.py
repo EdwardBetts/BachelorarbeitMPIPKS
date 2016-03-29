@@ -19,6 +19,30 @@ from scipy.optimize import fsolve
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
+import mf_solver as mfs
+
+def g(E, beta):
+    if beta > 0.:
+        g =  E / (np.exp(beta * E) - 1.)
+    else:
+        g = - E / (np.exp(beta * E) - 1.)
+    g[np.isnan(g)] = 1. / np.abs(beta)
+    return g
+
+def R_generator_env(M, J, l_1s, beta_1, beta_2, gamma_1, gamma_2, retsing=False):
+    x = (np.arange(M)+1)[:, np.newaxis] * np.pi / (M + 1)
+    y = (np.arange(M)+1) * np.pi / (M + 1)
+    R_1 = np.zeros((M, M))
+    for l_1 in l_1s:
+        R_1 += 1. / len(l_1s) * g(2 * J * (np.cos(y) - np.cos(x)), beta_1) * 4 * gamma_1 ** 2 * np.sin(x * l_1) ** 2 * np.sin(y * l_1) ** 2
+
+    # get corresponding rate matrix
+    R_2 = g(2 * J * (np.cos(y) - np.cos(x)), beta_2) * gamma_2 ** 2 #* np.ones((M, M))
+        
+    if retsing:
+        return R_1, R_2
+    else:
+        return R_1 + R_2
 
 def get_k(M):
     """ Return all M possible quasimomenta of a 1D tight binding chain
@@ -313,6 +337,7 @@ def plot_n_k(k, kx, ky, kx_inp, ky_inp, n, T_e, E):
     # momentum choosed for plotting
     kx_plot = k['kx'][ind_plot_kx]
     ky_plot = k['ky'][ind_plot_ky]
+    print 'kx = %.2f, ky = %.2f'%(kx_plot,ky_plot)
     vline_K = axK.axvline(kx_plot, color='g')
     hline_K = axK.axhline(ky_plot, color='g')
     
@@ -363,9 +388,9 @@ print __doc__
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
 Mx = 20                             # system size in x-direction
-My = 21                             # system size in y-direction
-lx = 3.                             # heated site (x-component)
-ly = 4.                             # heated site (y-component)
+My = 10                             # system size in y-direction
+lx = 4.                             # heated site (x-component)
+ly = 1.                             # heated site (y-component)
 n = 3                               # particle density
 g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys

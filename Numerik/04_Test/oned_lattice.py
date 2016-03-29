@@ -18,30 +18,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import fsolve
 import matplotlib
-import mf_solver as mfs
-
-def g(E, beta):
-    if beta > 0.:
-        g =  E / (np.exp(beta * E) - 1.)
-    else:
-        g = - E / (np.exp(beta * E) - 1.)
-    g[np.isnan(g)] = 1. / np.abs(beta)
-    return g
-
-def R_generator_env(M, J, l_1s, beta_1, beta_2, gamma_1, gamma_2, retsing=False):
-    x = (np.arange(M)+1)[:, np.newaxis] * np.pi / (M + 1)
-    y = (np.arange(M)+1) * np.pi / (M + 1)
-    R_1 = np.zeros((M, M))
-    for l_1 in l_1s:
-        R_1 += 1. / len(l_1s) * g(2 * J * (np.cos(y) - np.cos(x)), beta_1) * 4 * gamma_1 ** 2 * np.sin(x * l_1) ** 2 * np.sin(y * l_1) ** 2
-
-    # get corresponding rate matrix
-    R_2 = g(2 * J * (np.cos(y) - np.cos(x)), beta_2) * gamma_2 ** 2 #* np.ones((M, M))
-        
-    if retsing:
-        return R_1, R_2
-    else:
-        return R_1 + R_2
 
 def get_k(M):
     """ Return all M possible quasimomenta of the tight binding chain
@@ -146,15 +122,15 @@ def func(r, *data):
     
     return func[1:]             # slice away the last equation
 
-def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
+def get_mat_n(T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
     """ Solve the nonlinear system of equations in dependency of the 
         environment temperature T_e and return a matrix of occupation
         numbers n_i(T).
         Important for the numerics is the initial guess r_0 of the 
         occupation distribution (n_2,..,n_M) for the highest temperature 
         T_e[-1]. """
-    mat_n = np.zeros((M,N_T))               # matrix for the result
-    for i in range(N_T):
+    mat_n = np.zeros((M, len(T_e)))               # matrix for the result
+    for i in range(len(T_e)):
         R_e = get_R_e(E, M, g_e, T_e[-i-1]) # matrix with transition rates (env)
         #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
         R = get_R(R_e, R_h)                 # total transition rates
@@ -277,78 +253,71 @@ def onMouseClick(event):
         graph_BE = axK.plot(k[1:], get_BE(T_plot, E, k), color='b')
         # refreshing
         fig.canvas.draw()
+    
+
+def main():
+    print __doc__
+    #---------------------------global objects for plots---------------------------
+    global axT, axK, T_e, N_T, k, mat_n, E, fig
+
+    # ------------------------------set parameters-----------------------------
+    #---------------------------physical parameters--------------------------------
+    J = 1.                              # dispersion-constant
+    M = 100                             # system size (number of sites)
+    n = 3                               # density
+    N = n*M                             # number of particles
+    l = 5                               # heated site
+    g_h = 1.                            # coupling strength needle<->system
+    g_e = 1.                            # coupling strength environment<->sys
+    T_h = 60 * J                        # temperature of the needle
+
+    #----------------------------program parameters--------------------------------
+    N_T = 100                           # number of temp. data-points
+    tmpN_t = 4                          # number of temp. data-points in
+                                        # temporary calculations
+    tmpN_max = 256                      # maximal number of subslices
+    T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
+    T_c = 2 * J * n                     # critical temperature for BE-Cond.
+    
+    #--------------calculate environment temp. independent parameters----------
+    k = get_k(M)                        # vector of all quasimomenta
+    E = get_E(J,k)                      # vector of all energyvalues
+    R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
+    print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-10))
         
+    #-----calculate the occupation numbers in dependency of the temp-----------
+    r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
+    mat_n = get_mat_n(T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
 
-#def main():
-print __doc__
+    #-----------------------plot n_i(T_E)--------------------------------------
 
-# ------------------------------set parameters-----------------------------
-#---------------------------physical parameters--------------------------------
-J = 1.                              # dispersion-constant
-M = 299                             # system size (number of sites)
-n = 3                               # density
-N = n*M                             # number of particles
-l = 6.                               # heated site
-g_h = 1.                            # coupling strength needle<->system
-g_e = 1.                            # coupling strength environment<->sys
-T_h = 60 * J                        # temperature of the needle
+    fig = plt.figure("Mean-field occupation", figsize=(16,9))
+    axT = fig.add_subplot(121)
+    axT.set_xlabel(r'$T/J$')
+    axT.set_ylabel(r'$\bar{n}_i$')
+    axT.set_xlim([np.min(T_e), np.max(T_e)])
+    axT.set_ylim([8*10e-5, 3*N])
+    axT.set_xscale('log')
+    axT.set_yscale('log')
+        
+    axK = fig.add_subplot(122)
+    axK.set_xlabel(r'$k/a$')
+    axK.set_ylabel(r'$\bar{n}_i$')
+    axK.set_xlim([0, np.pi])
+    axK.set_ylim([8*10e-4, 3*N])
+    axK.set_yscale('log')
 
-#----------------------------program parameters--------------------------------
-N_T = 100                           # number of temp. data-points
-tmpN_t = 4                          # number of temp. data-points in
-                                    # temporary calculations
-tmpN_max = 256                      # maximal number of subslices
-T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
-T_c = 2 * J * n                     # critical temperature for BE-Cond.  
+    # connect plotting window with the onClick method
+    cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
 
-#---------------------------global objects for plots---------------------------
-vline = None
-graph_K = None
-graph_BE = None
-    
-#--------------calculate environment temp. independent parameters----------
-k = get_k(M)                        # vector of all quasimomenta
-E = get_E(J,k)                      # vector of all energyvalues
-R_h = get_R_h(E, M, l, g_h, T_h)    # matrix with transition rates (needle)
-print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-10))
-    
-#-----calculate the occupation numbers in dependency of the temp-----------
-#r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
-#mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max)  
-
-R_gen = lambda x: R_generator_env(M, J, [l], 1./T_h, x, g_h, g_e)
-beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)       
-mat_n = np.transpose(ns_2[::-1])
-
-#-----------------------plot n_i(T_E)--------------------------------------
-
-fig = plt.figure("Mean-field occupation", figsize=(16,9))
-axT = fig.add_subplot(121)
-axT.set_xlabel(r'$T/J$')
-axT.set_ylabel(r'$\bar{n}_i$')
-axT.set_xlim([np.min(T_e), np.max(T_e)])
-axT.set_ylim([8*10e-5, 3*N])
-axT.set_xscale('log')
-axT.set_yscale('log')
-    
-axK = fig.add_subplot(122)
-axK.set_xlabel(r'$k/a$')
-axK.set_ylabel(r'$\bar{n}_i$')
-axK.set_xlim([0, np.pi])
-axK.set_ylim([8*10e-4, 3*N])
-axK.set_yscale('log')
-
-# connect plotting window with the onClick method
-cid = fig.canvas.mpl_connect('button_press_event', onMouseClick)
-
-# plot initial lines    
-plot_axT(T_e, M, mat_n)
-plot_init_axK(T_c, T_e, E, k, N_T, mat_n)
-# refreshing
-fig.canvas.draw()
-    
-matplotlib.rcParams.update({'font.size': 18})
-plt.show()
+    # plot initial lines    
+    plot_axT(T_e, M, mat_n)
+    plot_init_axK(T_c, T_e, E, k, N_T, mat_n)
+    # refreshing
+    fig.canvas.draw()
+        
+    matplotlib.rcParams.update({'font.size': 18})
+    plt.show()
               
-#if __name__ == '__main__':
-#   main()
+if __name__ == '__main__':
+   main()
