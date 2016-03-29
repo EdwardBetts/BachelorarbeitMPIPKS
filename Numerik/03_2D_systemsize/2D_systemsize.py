@@ -18,6 +18,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import fsolve
 import matplotlib
 import matplotlib.cm as cm
+import mf_solver as mfs
 
 def get_k(M):
     """ Return all M possible quasimomenta of a 1D tight binding chain
@@ -95,90 +96,12 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
     
     return R_h
 
-def get_R(R_e,R_h):
-    """ Calculate the transition rate matrix. The element (i,j) accords to
-    the number of transitions per time unit from energystate j to i."""
-    R = R_e + R_h
-    return R
-    
-
-def get_n1(r,N):
-    """ Return the mean occupation number of the ground state with the
-    given total particle number. r is the vector of all other mean occupation
-    numbers of the energystates 2,...,M."""
-    n1 = N - np.sum(r)
-    return n1
-    
-
-def func(r, *data):
-    """This is the function which roots should be determined.r is the vector 
-    of the mean occupation numbers of the energystates 2,...,M. R is the
-    matrix of transition rates. r represents the solution of the M-1 
-    dimensional system of nonlinear equations."""
-    R, M, N = data              # trans. rates, system size, particle number
-    n1 = get_n1(r,N)            # occupation number of groundstate
-    n = np.zeros(M)             # vector of mean occupation numbers
-    n[0] = n1   
-    n[1:] = r                    
-    func = np.zeros(M)          # implement all M equations at first
-    A = R - np.transpose(R)     # rate asymmetry matrix
-    func = np.dot(A,n)*n + np.dot(R,n) - R.sum(axis=0) * n
-    
-    return func[1:]             # slice away the last equation
-
-def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
-    """ Solve the nonlinear system of equations in dependency of the 
-        environment temperature T_e and return a matrix of occupation
-        numbers n_i(T).
-        Important for the numerics is the initial guess r_0 of the 
-        occupation distribution (n_2,..,n_M) for the highest temperature 
-        T_e[-1]. """
-    mat_n = np.zeros((M,N_T))               # matrix for the result
-    for i in range(N_T):
-        R_e = get_R_e(E, M, g_e, T_e[-i-1]) # matrix with transition rates (env)
-        #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
-        R = get_R(R_e, R_h)                 # total transition rates
-        data = (R, M, N)                    # arguments for fsolve  
-        #-----------solve the nonlinear system of equations--------------------    
-        solution = fsolve(func, r_0,args=data, full_output=1)
-        if solution[2] == 0:                # if sol. didnt conv., repeat calcul.
-            
-        else:
-            n1 = get_n1(solution[0],N) # occupation number of the ground state
-            n = np.zeros(M)                 # vector of all occupation numbers
-            n[0], n[1:] = n1 , solution[0] 
-            if np.any(n<0.):                # if solution is unphysical      
-               # print "Needed to repeat calculation at Temperature T_e =", T_e[-i-1],\
-                #        "with index i = ", N_T-i-1
-                n = get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
-                if n == None:
-                    print "Calculation failed! You may choose a larger tmpN_max."
-                    break
-                else:
-                    r_0 = n[1:]
-            else:
-                r_0 = solution[0]
-            mat_n[:,-i-1] = n
-        #if i % 10 == 0:
-         #  print "Calculated {0:.2f}%".format(100*np.float64(i)/N_T) 
-        
-    #print "Calculation of the occupation numbers successful!" 
-    return mat_n
-
-def get_tmpT(T_e, i, tmpN_t):
-    """ Calculate an array of logspaced temperature sample points with
-        elements in [T_e[-i-1],T_e[-i]]."""
-    if i == 0:
-        print "Solution converged into an unphysical state. ",\
-                "Choose a better initial guess r_0."
-    else:
-        tmpT = np.logspace(np.log10(T_e[-i-1]), np.log10(T_e[-i]), num= tmpN_t,
-                           endpoint = True)
-        return tmpT
     
 def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, tmpN_t, tmpN_max, axM):
     mat_n_M = np.zeros((N_T,len(Mx)))    
     for i in range(len(Mx)):
+        if i % 5 == 0:
+            print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx)) 
         M = Mx[i] * My                         # total number of sizes
         r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
         N = n*M                             # particle number 
@@ -189,51 +112,18 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, tmpN_t, tmpN
         E = get_E(k, Jx, Jy, M)             # vector of all energyeigenvalues
         R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
                       ky, k, g_h, T_h)                           # particle number
-        mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
-                      N, E, g_e, R_h,       # T_e is const. in each column
-                      tmpN_t, tmpN_max)     # n_i is const in each row 
+        # mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
+        #               N, E, g_e, R_h,       # T_e is const. in each column
+        #               tmpN_t, tmpN_max)     # n_i is const in each row
+        R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1./x)
+        beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
+        mat_n = np.transpose(ns_2[::-1])
         # determine index of condensate state (at T_e[0])
         ind_max = np.argmax(mat_n, axis=0)[0]
         mat_n_M[:,i] = mat_n[ind_max,:]/N
+        #print mat_n[ind_max,:]/N
+    print "Calculation finished!"
     return mat_n_M
-    
-
-def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
-    """ If the calculation in get_mat_n throws an invalid value for a 
-        particular temperature T_e[i], this function tries to repeat the 
-        calculation with a smaller stepsize in the interval T_e[i-1],T_e[i]
-        for getting a better initial guess.
-        In the case of success it returns the correct occupation number 
-        n(T_e[i]). In the case of failure (if tmpN_T >= tmpN_max) it 
-        returns an exception-string."""
-    while tmpN_t < tmpN_max:                    # repeat until tmpN_t reaches max.
-        tmpT = get_tmpT(T_e, i, tmpN_t)         # reduced temperature array
-                                                # for closer sample points    
-        for j in range(tmpN_t):
-            R_e = get_R_e(E, M, g_e,       # rate-matrix of the environment
-                          tmpT[-j-1])  
-            #print get_R_e_test(E, M, g_e, tmpT, R_e, 10e-15)
-            R = get_R(R_e, R_h)                 # total transition rates
-            data = (R, M, N)                    # arguments for fsolve  
-            #-----------solve the nonlinear system of equations--------------------    
-            solution = fsolve(func, r_0,args=data, full_output=1)
-            if solution[2] == 0:                # if sol. didnt conv., increase s.p.
-                tmpN_t *= 4
-                print "Increased tmpN because of a nonconvergent solution!"
-                break
-            else:
-                n1 = get_n1(solution[0],N) # occupation number of the ground state
-                n = np.zeros(M)            # vector of all occupation numbers
-                n[0], n[1:] = n1 , solution[0] 
-                if np.any(n<0.):           # if solution is unphysical        
-                    tmpN_t *= 4            # increase num of sample points
-                    print "Increased tmpN because of an unphysical solution!"
-                    break
-                elif j!= tmpN_t-1:         # if iteration is not finished
-                    r_0 = solution[0]      # just change initial guess 
-                else:
-                    print "Found a better solution! :)"
-                    return n
         
         
 def main():
@@ -244,12 +134,12 @@ def main():
     #---------------------------physical parameters--------------------------------
     Jx = 1.                             # dispersion-constant in x-direction
     Jy = 1.                             # dispersion-constant in y-direction   
-    Mx = np.logspace(0,2,50)            # system size in x-direction
-    My = 1                             # system size in y-direction
-    lx = 4.                             # heated site (x-component)
+    lx = 7.                             # heated site (x-component)
     ly = 1.                             # heated site (y-component)
+    Mx = lx * np.arange(3,20)+1            # system size in x-direction
+    My = 2                              # system size in y-direction
     n = 3                               # particle density
-    g_h = 1.                           # coupling strength needle<->system
+    g_h = 1.                            # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
     T_h = 60*Jx                         # temperature of the needle
     M = Mx * My                         # new 2D-system size
@@ -289,8 +179,6 @@ def main():
     axM.set_ylabel(r"T")
     axM.set_xlim([M_min,M_max])
     axM.set_ylim([T_min,T_max])
-    axM.set_xscale('log')
-    axM.set_yscale('log')
     
     mat_M_n = get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, 
                           T_e, N_T, tmpN_t, tmpN_max, axM)
