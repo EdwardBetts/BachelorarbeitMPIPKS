@@ -18,6 +18,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import fsolve
 import matplotlib
 import matplotlib.cm as cm
+import matplotlib.gridspec as gridspec
 
 def get_k(M):
     """ Return all M possible quasimomenta of a 1D tight binding chain
@@ -40,6 +41,11 @@ def get_E(k, Jx, Jy, M):
     E = np.zeros(M)
     E = -2*(Jx*np.cos(k['kx'])+Jy*np.cos(k['ky']))
     return E
+
+def plotE(E, k_min, k_max):
+    global graph_E
+    graph_E = axE.imshow(E[::-1,:], interpolation = 'None', cmap = cm.YlGnBu, 
+               extent = [k_min,k_max,k_min,k_max]) 
     
 def get_R_e(E, M, g_e, T_e):
     """ Return the contribution of the environment to the transition rate."""
@@ -356,12 +362,12 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 30                             # system size in x-direction
-My = 31                             # system size in y-direction
+Mx = 20                             # system size in x-direction
+My = 21                             # system size in y-direction
 lx = 3.                             # heated site (x-component)
 ly = 4.                             # heated site (y-component)
 n = 3                               # particle density
-g_h = 1.                           # coupling strength needle<->system
+g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
 T_h = 60*Jx                         # temperature of the needle
 M = Mx * My                         # new 2D-system size
@@ -386,6 +392,7 @@ graph_kx = None                     # initialise graph at axKx
 graph_ky = None                     # initialise graph at axKy
 graph_BEx = None                    # initialise graph for BEx at axKx
 graph_BEy = None                    # initialise graph for BEy at axKy
+graph_E = None
 n_min = 10e-3                       # minimal value of the occupation number
 n_max = N                           # maximal value of the occupation number
 nticks_cb = 5                       # number of ticks at colorbar (axK)
@@ -414,31 +421,38 @@ mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
 #------------------------set - up plotting windows-----------------------------
 fig = plt.figure("Mean-field occupation", figsize=(16,14))
 
+
+gs_left = gridspec.GridSpec(2, 1)        # grid spect for controlling figures
+gs_left.update(left=0.09, right=0.35)
 # plotting window for n(kx,ky)
-axK = fig.add_subplot(221)
+
+axK = fig.add_subplot(gs_left[0,0])
 axK.set_xlabel(r"$k_x$")
 axK.set_ylabel(r"$k_y$")
 axK.set_xlim([0,k_max])
 axK.set_ylim([k_min,k_max])
 
-# plotting window for n(ky|kx)
-axKy = fig.add_subplot(222)
-axKy.set_xlabel(r'$\bar{n}_i$')
-axKy.set_ylabel(r"$k_y$")
-axKy.set_xlim([n_min,n_max])
-axKy.set_xscale('log')
-axKy.set_ylim([k_min,k_max])
-
 # plotting window for n(kx|ky)
-axKx = fig.add_subplot(223)
+axKx = fig.add_subplot(gs_left[1,0])
 axKx.set_xlabel(r"$k_x$")
 axKx.set_ylabel(r'$\bar{n}_i$')
 axKx.set_xlim([k_min,k_max])
 axKx.set_ylim([n_min,n_max])
 axKx.set_yscale('log')
 
+gs_right = gridspec.GridSpec(2, 2)
+gs_right.update(left=0.43, right=0.98)
+
+# plotting window for n(ky|kx)
+axKy = fig.add_subplot(gs_right[0,0])
+axKy.set_xlabel(r'$\bar{n}_i$')
+axKy.set_ylabel(r"$k_y$")
+axKy.set_xlim([n_min,n_max])
+axKy.set_xscale('log')
+axKy.set_ylim([k_min,k_max])
+
 # plotting window for n(T_e)
-axT = fig.add_subplot(224)
+axT = fig.add_subplot(gs_right[1,0])
 axT.set_xlabel(r'$T/J$')
 axT.set_ylabel(r'$\bar{n}_i$')
 axT.set_xlim([np.min(T_e), np.max(T_e)])
@@ -446,19 +460,31 @@ axT.set_ylim([n_min, n_max])
 axT.set_xscale('log')
 axT.set_yscale('log')
 
+axE = fig.add_subplot(gs_right[0,1])
+axE.set_title('Energylevels')
+axE.set_xlabel(r'$k_x$')
+axE.set_ylabel(r'$k_y$')
+axE.set_xlim([k_min, k_max])
+axE.set_ylim([k_min, k_max])
+
+
 # initial plots on program start
+plotE(E.reshape((My, Mx)),k_min,k_max)
 plot_axT(T_e, M, mat_n)
 plot_axK(T_plot, T_e, N_T, mat_n, n_min, n_max, kx, ky)
 plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, T_plot, E)
 
 # set-up-colorbar at axK
-t = np.logspace(np.log10(n_min),np.log10(n_max), num=nticks_cb)
-cb_axK = fig.colorbar(graph_K, ax=axK, ticks=t, format='$%.1e$')
+t_K = np.logspace(np.log10(n_min),np.log10(n_max), num=nticks_cb)
+cb_axK = fig.colorbar(graph_K, ax=axK, ticks=t_K, format='$%.1e$')
+
+cb_axE = fig.colorbar(graph_E, orientation ='horizontal',
+                      ticks=[np.min(E), 0, np.max(E)],ax=axE, format='%.2f')
 
 # connect plotting window with the onClick method
 cid = fig.canvas.mpl_connect('button_press_event', onMouseClick) 
 # optimize font-size   
-matplotlib.rcParams.update({'font.size': 16})
+matplotlib.rcParams.update({'font.size': 15})
 plt.show()
               
 #if __name__ == '__main__':
