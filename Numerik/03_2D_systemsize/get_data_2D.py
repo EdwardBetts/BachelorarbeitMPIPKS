@@ -92,8 +92,7 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
     R_h *= mat_sin_x * mat_sin_y
     return R_h
 
-    
-def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, axM):
+def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
     """ Calculate the occupation numbers in dependency of the system size M(x)
         and the environmental-temperature.
         Returns a matrix where M is constant in each column and 
@@ -128,65 +127,49 @@ def main():
     main.__doc__ = __doc__
     print __doc__
     
-    # ------------------------------set parameters--------------------------------
-    #---------------------------physical parameters--------------------------------
+    # ------------------------------set parameters-----------------------------
+    #----------------------------program parameters----------------------------
+    fname_mat_M_n = 'mat_M_n.dat'       # file-name of the file for mat_M_n
+    fname_Mx = 'Mx.dat'                 # file-name of the file for Mx
+    fname_T_e = 'T_e.dat'               # file-name of the file for T_e
+    N_M = 5                             # number of system-size data-points
+    Mx_min = 10                         # minimal system size (magnitude)
+    Mx_max = 80                        # maximal system size (magnitude)
+    N_T = 100                           # number of temp. data-points
+    T_e_min = 10e-2                     # minimal temperature
+    T_e_max = 10e2                      # maximal temperature
+    
+    #---------------------------physical parameters----------------------------
     Jx = 1.                             # dispersion-constant in x-direction
     Jy = 1.                             # dispersion-constant in y-direction   
     lx = 7.                             # heated site (x-component)
     ly = 1.                             # heated site (y-component)
-     # system size in x-direction (log spaced)
-    Mx = (lx * np.logspace(1,2,20)).astype(int) 
-    Mx[(Mx+1)%3 == 0] += 1
-    assert Mx != []
+    # system size in x-direction (log spaced)
+    Mx = (lx * np.logspace(np.log10(Mx_min),np.log10(Mx_max),N_M)+1).astype(int) 
     My = 2                              # system size in y-direction
+    # Mx + 1 mustn't be a multiple of My +1
+    Mx[(Mx+1)%(My+1) == 0] += 1
+    assert Mx != []
     n = 3                               # particle density
     g_h = 1.                            # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
     T_h = 60*Jx                         # temperature of the needle
+    # temperatures of the environment
+    T_e = np.logspace(np.log10(T_e_min),np.log10(T_e_max),N_T)         
 
-    #----------------------------program parameters--------------------------------
-    N_T = 100                           # number of temp. data-points
-    T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
-    n_min = 0                           # minimal value of the occupation number
-    n_max = 1                           # maximal value of the occupation number
-    M_min = np.min(Mx)
-    M_max = np.max(Mx)
-    T_min = T_e[0]
-    T_max = T_e[-1]
-    
-    
-    
-    #--------------calculate environment temp. independent parameters----------
-    
-    
-    print "Started calculation of the occupation numbers..."    
-    #-----------------------calculate occupation numbers---------------------------
-    #mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
-     #                 N, E, g_e, R_h,   # T_e is const. in each column
-      #                tmpN_t, tmpN_max) # n_i is const in each row
-    
-    #------------------------set - up plotting windows-----------------------------
-    fig = plt.figure("Mean-field occupation", figsize=(16,14))
-    
-    # plotting window for n(kx,ky)
-    axM = fig.add_subplot(111)
-    axM.set_xlabel(r"M")
-    axM.set_ylabel(r"T")
-    axM.set_xlim([M_min,M_max])
-    axM.set_ylim([T_min,T_max])
-    axM.set_xscale('log')
-    axM.set_yscale('log')
-    
+    #-------------------calculate the occupation numbers-----------------------
+    print "Started calculation..."
     mat_M_n = get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, 
-                          T_e, N_T, axM)
-    norm = cm.colors.Normalize(vmax=1, vmin=0)
-    graph_M = axM.imshow(mat_M_n[::-1],interpolation = 'None', cmap = cm.binary, 
-               norm =norm, extent=[M_min, M_max, T_min, T_max])
-    cb_axE = fig.colorbar(graph_M,ticks=[0, 0.5, 1],ax=axM, format='%.1f')
-
-    # optimize font-size   
-    matplotlib.rcParams.update({'font.size': 16})
-    plt.show()
-              
+                          T_e, N_T)
+    #------------------------Save all data to files----------------------------
+    try:
+        mat_M_n.tofile(fname_mat_M_n,sep=';')
+        T_e.tofile(fname_T_e,sep=';')
+        Mx.tofile(fname_Mx,sep=';')
+        print "Saving of data successful!"
+    except:
+        print "An error occured while saving the data!"
+    
+                 
 if __name__ == '__main__':
    main()

@@ -19,7 +19,7 @@ from scipy.optimize import fsolve
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
-import mf_solver as mfs
+
 
 def get_k(M):
     """ Return all M possible quasimomenta of a 1D tight binding chain
@@ -215,6 +215,119 @@ def plot_n_k(k, kx, ky, kx_inp, ky_inp, n, T_e, E):
     BE_y, ky_BE = get_BE(T_e, E_ky, mu, ky)
     graph_BEx = axKx.plot(kx_BE, BE_x, color='b')
     graph_BEy = axKy.plot(BE_y, ky_BE, color='b')
+
+def get_R(R_e,R_h):
+    """ Calculate the transition rate matrix. The element (i,j) accords to
+    the number of transitions per time unit from energystate j to i."""
+    R = R_e + R_h
+    return R
+    
+
+def get_n1(r,N):
+    """ Return the mean occupation number of the ground state with the
+    given total particle number. r is the vector of all other mean occupation
+    numbers of the energystates 2,...,M."""
+    n1 = N - np.sum(r)
+    return n1
+    
+
+def func(r, *data):
+    """This is the function which roots should be determined.r is the vector 
+    of the mean occupation numbers of the energystates 2,...,M. R is the
+    matrix of transition rates. r represents the solution of the M-1 
+    dimensional system of nonlinear equations."""
+    R, M, N = data              # trans. rates, system size, particle number
+    n1 = get_n1(r,N)            # occupation number of groundstate
+    n = np.zeros(M)             # vector of mean occupation numbers
+    n[0] = n1   
+    n[1:] = r                    
+    func = np.zeros(M)          # implement all M equations at first
+    A = R - np.transpose(R)     # rate asymmetry matrix
+    func = np.dot(A,n)*n + np.dot(R,n) - R.sum(axis=0) * n
+    
+    return func[1:]             # slice away the last equation
+
+def get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max):
+    """ Solve the nonlinear system of equations in dependency of the 
+        environment temperature T_e and return a matrix of occupation
+        numbers n_i(T).
+        Important for the numerics is the initial guess r_0 of the 
+        occupation distribution (n_2,..,n_M) for the highest temperature 
+        T_e[-1]. """
+    mat_n = np.zeros((M,N_T))               # matrix for the result
+    for i in range(N_T):
+        print i
+        R_e = get_R_e(E, M, g_e, T_e[-i-1]) # matrix with transition rates (env)
+        #print get_R_e_test(E, M, g_e, T_e, R_e, 10e-15)
+        R = get_R(R_e, R_h)                 # total transition rates
+        data = (R, M, N)                    # arguments for fsolve  
+        #-----------solve the nonlinear system of equations--------------------    
+        solution = fsolve(func, r_0,args=data, full_output=1)
+        if solution[2] == 0:                # if sol. didnt conv., repeat calcul.
+            print i
+        else:
+            n1 = get_n1(solution[0],N) # occupation number of the ground state
+            n = np.zeros(M)                 # vector of all occupation numbers
+            n[0], n[1:] = n1 , solution[0] 
+            if np.any(n<0.):                # if solution is unphysical      
+                print "Needed to repeat calculation at Temperature T_e =", T_e[-i-1] 
+                n = get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max)
+                if n == None:
+                    print "Calculation failed! You may choose a larger tmpN_max."
+                    break
+                else:
+                    r_0 = n[1:]
+            else:
+                r_0 = solution[0]
+            mat_n[:,-i-1] = n
+        if i % 10 == 0:
+            print "Calculated {0:.2f}%".format(100*np.float64(i)/N_T) 
+    return mat_n
+
+def get_tmpT(T_e, i, tmpN_t):
+    """ Calculate an array of logspaced temperature sample points with
+        elements in [T_e[-i-1],T_e[-i]]."""
+    if i == 0:
+        print "Solution converged into an unphysical state. ",\
+                "Choose a better initial guess r_0."
+    else:
+        tmpT = np.logspace(np.log10(T_e[-i-1]), np.log10(T_e[-i]), num= tmpN_t,
+                           endpoint = True)
+        return tmpT
+
+def get_cor_n(i, T_e, r_0, M, N, E, g_e, R_h, tmpN_t, tmpN_max):
+    """ If the calculation in get_mat_n throws an invalid value for a 
+        particular temperature T_e[i], this function tries to repeat the 
+        calculation with a smaller stepsize in the interval T_e[i-1],T_e[i]
+        for getting a better initial guess.
+        In the case of success it returns the correct occupation number 
+        n(T_e[i]). In the case of failure (if tmpN_T >= tmpN_max) it 
+        returns an exception-string."""
+    while tmpN_t < tmpN_max:                    # repeat until tmpN_t reaches max.
+        tmpT = get_tmpT(T_e, i, tmpN_t)         # reduced temperature array
+                                                # for closer sample points    
+        for j in range(tmpN_t):
+            R_e = get_R_e(E, M, g_e, tmpT[-j-1])# matrix with transition rates (env)
+            #print get_R_e_test(E, M, g_e, tmpT, R_e, 10e-15)
+            R = get_R(R_e, R_h)                 # total transition rates
+            data = (R, M, N)                    # arguments for fsolve  
+            #-----------solve the nonlinear system of equations--------------------    
+            solution = fsolve(func, r_0,args=data, full_output=1)
+            if solution[2] == 0:                # if sol. didnt conv., increase s.p.
+                tmpN_t *= 10
+                break
+            else:
+                n1 = get_n1(solution[0],N) # occupation number of the ground state
+                n = np.zeros(M)            # vector of all occupation numbers
+                n[0], n[1:] = n1 , solution[0] 
+                if np.any(n<0.):           # if solution is unphysical        
+                    tmpN_t *= 2           # increase num of sample points
+                    break
+                elif j!= tmpN_t-1:         # if iteration is not finished
+                    r_0 = solution[0]      # just change initial guess 
+                else:
+                    return n
+        print "Increased tmpN!"
     
 def onMouseClick(event):
     """ Implements the click interactions of the user.
@@ -293,9 +406,9 @@ R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
 
 print "Started calculation of the occupation numbers..."    
 #-----------------------calculate occupation numbers---------------------------
-R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1./x)
-beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
-mat_n = np.transpose(ns_2[::-1])
+mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
+                  N, E, g_e, R_h,   # T_e is const. in each column
+                 tmpN_t, tmpN_max) # n_i is const in each row
 
 #------------------------set - up plotting windows-----------------------------
 fig = plt.figure("Mean-field occupation", figsize=(16,14))
