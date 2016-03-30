@@ -48,11 +48,9 @@ def get_R_e(E, M, g_e, T_e):
     mat_E_x, mat_E_y = np.meshgrid(E,E) 
     mat_diff = mat_E_y - mat_E_x        # matrix representing: E_i - E_j
     # matrix for transition rates
-    R_e = np.ones((M,M))* g_e**2 * T_e 
-    ind = np.abs(mat_diff) > 10e-6          # indices of the non-divergent elements
-    # fill in just those elements without divergences 1/0
-    # the rest is set to the correct limit
-    R_e[ind] = g_e**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_e)-1)
+    R_e = g_e**2 * mat_diff/(np.exp(mat_diff/T_e)-1)
+    # set the divergent elements to the correct limit
+    R_e[np.isnan(R_e)] = g_e**2 * T_e 
     return R_e
 
 def get_R_e_test(E, M, g_e, T_e, R_e, epsilon):
@@ -82,18 +80,16 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
         
     # leave out the sine-terms at first
     # matrix for transition rates
-    R_h = np.ones((M,M))*g_h**2 * T_h * 16 
-    ind = np.abs(mat_diff) > 10e-6          # indices of the non-divergent elements
+    R_h = g_h**2 *16* mat_diff/(np.exp(mat_diff/T_h)-1)
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
-    R_h[ind] = g_h**2 *16* mat_diff[ind]/(np.exp(mat_diff[ind]/T_h)-1)
+    R_h[np.isnan(R_h)] = g_h**2 * T_h * 16 
     
     # multiply the sine-terms
     vec_sin = get_vec_sin(k, M, lx, ly) 
     # transform sine-vectors into matrices
     mat_sin_x, mat_sin_y = np.meshgrid(vec_sin, vec_sin)
     R_h *= mat_sin_x * mat_sin_y
-    
     return R_h
 
     
@@ -105,6 +101,7 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, tmpN_t, tmpN
         M = Mx[i] * My                         # total number of sizes
         r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
         N = n*M                             # particle number 
+        print int(Mx[i])
         
         kx = get_k(int(Mx[i]))                      # vector of all quasimomenta in x-dir
         ky = get_k(My)                      # vector of all quasimomenta in y-dir
@@ -121,7 +118,6 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, tmpN_t, tmpN
         # determine index of condensate state (at T_e[0])
         ind_max = np.argmax(mat_n, axis=0)[0]
         mat_n_M[:,i] = mat_n[ind_max,:]/N
-        #print mat_n[ind_max,:]/N
     print "Calculation finished!"
     return mat_n_M
         
@@ -136,17 +132,16 @@ def main():
     Jy = 1.                             # dispersion-constant in y-direction   
     lx = 7.                             # heated site (x-component)
     ly = 1.                             # heated site (y-component)
-    Mx = lx * np.arange(3,20)+1            # system size in x-direction
+    Mx = lx * np.logspace(1,1.9,20)+1.    # system size in x-direction
     My = 2                              # system size in y-direction
     n = 3                               # particle density
     g_h = 1.                            # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
     T_h = 60*Jx                         # temperature of the needle
-    M = Mx * My                         # new 2D-system size
-    N = n*M                             # number of particles
+
     
     #----------------------------program parameters--------------------------------
-    N_T = 120                           # number of temp. data-points
+    N_T = 150                           # number of temp. data-points
     tmpN_t = 4                          # number of temp. data-points in
                                         # temporary calculations
     epsilon = 10e-10                    # minimal accuracy for the compare-test
@@ -179,12 +174,14 @@ def main():
     axM.set_ylabel(r"T")
     axM.set_xlim([M_min,M_max])
     axM.set_ylim([T_min,T_max])
+    axM.set_xscale('log')
+    axM.set_yscale('log')
     
     mat_M_n = get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, 
                           T_e, N_T, tmpN_t, tmpN_max, axM)
     norm = cm.colors.Normalize(vmax=1, vmin=0)
     graph_M = axM.imshow(mat_M_n[::-1],interpolation = 'None', cmap = cm.binary, 
-               norm =norm, extent = [M_min, M_max, T_min,T_max])
+               norm =norm, extent=[M_min, M_max, T_min, T_max])
     cb_axE = fig.colorbar(graph_M,ticks=[0, 0.5, 1],ax=axM, format='%.1f')
 
     # optimize font-size   

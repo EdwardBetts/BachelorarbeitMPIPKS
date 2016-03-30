@@ -54,11 +54,9 @@ def get_R_e(E, M, g_e, T_e):
     mat_E_x, mat_E_y = np.meshgrid(E,E) 
     mat_diff = mat_E_y - mat_E_x        # matrix representing: E_i - E_j
     # matrix for transition rates
-    R_e = np.ones((M,M))* g_e**2 * T_e 
-    ind = np.abs(mat_diff) > 10e-6          # indices of the non-divergent elements
-    # fill in just those elements without divergences 1/0
-    # the rest is set to the correct limit
-    R_e[ind] = g_e**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_e)-1)
+    R_e = g_e**2 * mat_diff/(np.exp(mat_diff/T_e)-1)
+    # set the divergent elements to the correct limit
+    R_e[np.isnan(R_e)] = g_e**2 * T_e 
     return R_e
 
 def get_R_e_test(E, M, g_e, T_e, R_e, epsilon):
@@ -88,18 +86,16 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
         
     # leave out the sine-terms at first
     # matrix for transition rates
-    R_h = np.ones((M,M))*g_h**2 * T_h * 16 
-    ind = np.abs(mat_diff) > 10e-6          # indices of the non-divergent elements
+    R_h = g_h**2 *16* mat_diff/(np.exp(mat_diff/T_h)-1)
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
-    R_h[ind] = g_h**2 *16* mat_diff[ind]/(np.exp(mat_diff[ind]/T_h)-1)
+    R_h[np.isnan(R_h)] = g_h**2 * T_h * 16 
     
     # multiply the sine-terms
     vec_sin = get_vec_sin(k, M, lx, ly) 
     # transform sine-vectors into matrices
     mat_sin_x, mat_sin_y = np.meshgrid(vec_sin, vec_sin)
     R_h *= mat_sin_x * mat_sin_y
-    
     return R_h
         
 def plot_axT(T_e, M, mat_n):
@@ -245,10 +241,10 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 500                             # system size in x-direction
-My = 3                             # system size in y-direction
-lx = 6.                             # heated site (x-component)
-ly = 2.                             # heated site (y-component)
+Mx = 101                             # system size in x-direction
+My = 2                             # system size in y-direction
+lx = 7.                             # heated site (x-component)
+ly = 1.                             # heated site (y-component)
 n = 3                               # particle density
 g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
