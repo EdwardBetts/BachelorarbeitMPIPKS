@@ -103,6 +103,7 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
                 init = beta[i-1] / beta[i] * init
             
             R = R_gen(beta[i])
+            print np.sum(R == 0)
         
         A = R - np.transpose(R)
         Rsum = R.sum(axis=0)

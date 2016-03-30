@@ -93,22 +93,24 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
     return R_h
 
     
-def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, tmpN_t, tmpN_max, axM):
+def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, axM):
+    """ Calculate the occupation numbers in dependency of the system size M(x)
+        and the environmental-temperature.
+        Returns a matrix where M is constant in each column and 
+        T_e is constant in each row."""
     mat_n_M = np.zeros((N_T,len(Mx)))    
     for i in range(len(Mx)):
         if i % 5 == 0:
             print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx)) 
-        M = Mx[i] * My                         # total number of sizes
+        M = Mx[i] * My                      # total number of sizes
         r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
-        N = n*M                             # particle number 
-        print int(Mx[i])
-        
-        kx = get_k(int(Mx[i]))                      # vector of all quasimomenta in x-dir
+        N = n*M                             # particle number         
+        kx = get_k(Mx[i])                   # vector of all quasimomenta in x-dir
         ky = get_k(My)                      # vector of all quasimomenta in y-dir
-        k = get_vec_k(kx, ky, int(Mx[i]), My)       # vector of tuples of (kx,ky)
+        k = get_vec_k(kx, ky, Mx[i], My)    # vector of tuples of (kx,ky)
         E = get_E(k, Jx, Jy, M)             # vector of all energyeigenvalues
         R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
-                      ky, k, g_h, T_h)                           # particle number
+                      ky, k, g_h, T_h)                           
         # mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
         #               N, E, g_e, R_h,       # T_e is const. in each column
         #               tmpN_t, tmpN_max)     # n_i is const in each row
@@ -116,7 +118,7 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, tmpN_t, tmpN
         beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
         mat_n = np.transpose(ns_2[::-1])
         # determine index of condensate state (at T_e[0])
-        ind_max = np.argmax(mat_n, axis=0)[0]
+        ind_max = np.argmax(mat_n, axis=0)[1]
         mat_n_M[:,i] = mat_n[ind_max,:]/N
     print "Calculation finished!"
     return mat_n_M
@@ -132,22 +134,20 @@ def main():
     Jy = 1.                             # dispersion-constant in y-direction   
     lx = 7.                             # heated site (x-component)
     ly = 1.                             # heated site (y-component)
-    Mx = lx * np.logspace(1,1.9,20)+1.    # system size in x-direction
+     # system size in x-direction (log spaced)
+    Mx = (lx * np.logspace(1,2,20)).astype(int) 
+    Mx[(Mx+1)%3 == 0] += 1
+    assert Mx != []
     My = 2                              # system size in y-direction
     n = 3                               # particle density
     g_h = 1.                            # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
     T_h = 60*Jx                         # temperature of the needle
 
-    
     #----------------------------program parameters--------------------------------
-    N_T = 150                           # number of temp. data-points
-    tmpN_t = 4                          # number of temp. data-points in
-                                        # temporary calculations
-    epsilon = 10e-10                    # minimal accuracy for the compare-test
-    tmpN_max = 256                      # maximal number of subslices
+    N_T = 100                           # number of temp. data-points
     T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
-    n_min = 0                       # minimal value of the occupation number
+    n_min = 0                           # minimal value of the occupation number
     n_max = 1                           # maximal value of the occupation number
     M_min = np.min(Mx)
     M_max = np.max(Mx)
@@ -178,7 +178,7 @@ def main():
     axM.set_yscale('log')
     
     mat_M_n = get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, 
-                          T_e, N_T, tmpN_t, tmpN_max, axM)
+                          T_e, N_T, axM)
     norm = cm.colors.Normalize(vmax=1, vmin=0)
     graph_M = axM.imshow(mat_M_n[::-1],interpolation = 'None', cmap = cm.binary, 
                norm =norm, extent=[M_min, M_max, T_min, T_max])

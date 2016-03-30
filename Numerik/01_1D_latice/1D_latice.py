@@ -20,29 +20,6 @@ from scipy.optimize import fsolve
 import matplotlib
 import mf_solver as mfs
 
-def g(E, beta):
-    if beta > 0.:
-        g =  E / (np.exp(beta * E) - 1.)
-    else:
-        g = - E / (np.exp(beta * E) - 1.)
-    g[np.isnan(g)] = 1. / np.abs(beta)
-    return g
-
-def R_generator_env(M, J, l_1s, beta_1, beta_2, gamma_1, gamma_2, retsing=False):
-    x = (np.arange(M)+1)[:, np.newaxis] * np.pi / (M + 1)
-    y = (np.arange(M)+1) * np.pi / (M + 1)
-    R_1 = np.zeros((M, M))
-    for l_1 in l_1s:
-        R_1 += 1. / len(l_1s) * g(2 * J * (np.cos(y) - np.cos(x)), beta_1) * 4 * gamma_1 ** 2 * np.sin(x * l_1) ** 2 * np.sin(y * l_1) ** 2
-
-    # get corresponding rate matrix
-    R_2 = g(2 * J * (np.cos(y) - np.cos(x)), beta_2) * gamma_2 ** 2 #* np.ones((M, M))
-        
-    if retsing:
-        return R_1, R_2
-    else:
-        return R_1 + R_2
-
 def get_k(M):
     """ Return all M possible quasimomenta of the tight binding chain
     in the first Brillouin zone."""
@@ -60,11 +37,13 @@ def get_R_e(E, M, g_e, T_e):
     # transform energy-vector into matrices
     mat_E_x, mat_E_y = np.meshgrid(E,E) 
     mat_diff = mat_E_y - mat_E_x        # matrix representing: E_i - E_j
-    R_e = np.ones((M,M))*g_e**2 * T_e # matrix for transition rates
-    ind = np.abs(mat_diff) > 0          # indices of the non-divergent elements
+    # matrix for transition rates
+    R_e = g_e**2 * mat_diff/(np.exp(mat_diff/T_e)-1)
+    R_e[np.isnan(R_e)] = g_e**2 * T_e      
+    # indices of the non-divergent elements
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
-    R_e[ind] = g_e**2 * mat_diff[ind]/(np.exp(mat_diff[ind]/T_e)-1)
+   
     return R_e
 
 def get_R_e_test(E, M, g_e, T_e, R_e, epsilon):
@@ -87,12 +66,11 @@ def get_R_h(E, M, l, g_h, T_h):
     mat_diff = mat_E_y - mat_E_x        # matrix representing: E_i - E_j
         
     # leave out the sine-terms at first
-    R_h = np.ones((M,M))*g_h**2 * T_h*4   # matrix for transition rates
-    ind = np.abs(mat_diff) > 0          # indices of the non-divergent elements
+    R_h = g_h**2 *4* mat_diff/(np.exp(mat_diff/T_h)-1)    
+    R_h[np.isnan(R_h)] = g_h**2 * T_h*4   # matrix for transition rates
     # fill in just those elements without divergences 1/0
     # the rest is set to the correct limit
-    R_h[ind] = g_h**2 *4* mat_diff[ind]/(np.exp(mat_diff[ind]/T_h)-1)
-    
+
     # multiply the sine-terms
     sin = np.sin(l*np.arange(1,M+1)*np.pi/(M+1))**2 # vector with sine-values sin(li)**2
     # transform sine-vectors into matrices
@@ -285,10 +263,10 @@ print __doc__
 # ------------------------------set parameters-----------------------------
 #---------------------------physical parameters--------------------------------
 J = 1.                              # dispersion-constant
-M = 299                             # system size (number of sites)
+M = 202                             # system size (number of sites)
 n = 3                               # density
 N = n*M                             # number of particles
-l = 6.                               # heated site
+l = 7.                               # heated site
 g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
 T_h = 60 * J                        # temperature of the needle
@@ -316,7 +294,7 @@ print np.all(get_R_h_test(E, M, l, g_h, T_h, R_h, 10e-10))
 #r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
 #mat_n = get_mat_n(T_e, r_0, M, N_T, N, E, g_e, R_h, tmpN_t, tmpN_max)  
 
-R_gen = lambda x: R_generator_env(M, J, [l], 1./T_h, x, g_h, g_e)
+R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1/x)
 beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)       
 mat_n = np.transpose(ns_2[::-1])
 
