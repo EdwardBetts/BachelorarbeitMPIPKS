@@ -86,7 +86,7 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
         print "Beginne Suchalgorithmus..."
     
     for i in xrange(len(beta)):
-        if debug:
+        if debug and i%10 == 0:
             print "M =", M, ",", i *100 /float(len(beta)), "%" 
         
         red_state = 0

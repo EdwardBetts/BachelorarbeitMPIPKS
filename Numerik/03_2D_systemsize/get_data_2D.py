@@ -97,10 +97,12 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
         and the environmental-temperature.
         Returns a matrix where M is constant in each column and 
         T_e is constant in each row."""
-    mat_n_M = np.zeros((N_T,len(Mx)))    
+    mat_n_M = np.zeros((N_T + 2,len(Mx)))   
     for i in range(len(Mx)):
         if i % 5 == 0:
-            print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx)) 
+            print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx))
+        l = get_cond_cand(lx, ly, Mx[i], My)# determine condensate-candidates
+        print l
         M = Mx[i] * My                      # total number of sizes
         r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
         N = n*M                             # particle number         
@@ -109,18 +111,42 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
         k = get_vec_k(kx, ky, Mx[i], My)    # vector of tuples of (kx,ky)
         E = get_E(k, Jx, Jy, M)             # vector of all energyeigenvalues
         R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
-                      ky, k, g_h, T_h)                           
-        # mat_n = get_mat_n(T_e, r_0, M, N_T, # matrix with occupation numbers
-        #               N, E, g_e, R_h,       # T_e is const. in each column
-        #               tmpN_t, tmpN_max)     # n_i is const in each row
+                      ky, k, g_h, T_h)
+        # sum of all transition-rates in dependency of the temperature
         R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1./x)
         beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
+        # matrix with occupation numbers in depedency of the temperature
         mat_n = np.transpose(ns_2[::-1])
-        # determine index of condensate state (at T_e[0])
+        # determine index of condensate state (at T_e[1])
         ind_max = np.argmax(mat_n, axis=0)[1]
-        mat_n_M[:,i] = mat_n[ind_max,:]/N
+        mat_n_M[2:,i] = mat_n[ind_max,:]/N
+        
+        # determine the corresponding condensate-candidate
+        diff_x = np.abs(l['lx'] - k[ind_max]['kx'])
+        diff_y = np.abs(l['ly'] - k[ind_max]['ky'])
+        # index of the condensate state
+        ind_cond_x = np.argmin(diff_x, axis=1)[0]
+        ind_cond_y = np.argmin(diff_y, axis=0)[0]
+        mat_n_M[0,i] = ind_cond_x
+        mat_n_M[1,i] = ind_cond_y
     print "Calculation finished!"
     return mat_n_M
+
+def get_cond_cand(lx, ly, Mx, My):
+    """ Returns an array of candidate-states for the condensate."""    
+    # structured data type: vector of tuples of 64-bit floats
+    l = np.zeros(((ly+1),(lx+1)), dtype=[('lx','f8'),('ly','f8')])
+    for i in range(lx+1):
+        for j in range(ly+1): 
+            if i == 0 and j == 0:
+                l[0,0] = (np.pi / (Mx + 1), np.pi / (My + 1))
+            elif i == 0 and j != 0:
+                l[j,i] = (np.pi / (Mx + 1), j * np.pi / ly)
+            elif i != 0 and j == 0:
+                l[j,i] = (i * np.pi / lx, np.pi / (My + 1))
+            else:
+                l[j,i] = (i * np.pi / lx, j * np.pi / ly)
+    return l
         
         
 def main():
@@ -132,30 +158,36 @@ def main():
     fname_mat_M_n = 'mat_M_n.dat'       # file-name of the file for mat_M_n
     fname_Mx = 'Mx.dat'                 # file-name of the file for Mx
     fname_T_e = 'T_e.dat'               # file-name of the file for T_e
-    N_M = 5                             # number of system-size data-points
+    fname_params = 'params.dat'         # file-name of the file for params
+    N_M = 3                             # number of system-size data-points
     Mx_min = 10                         # minimal system size (magnitude)
-    Mx_max = 80                        # maximal system size (magnitude)
+    Mx_max = 25                         # maximal system size (magnitude)
     N_T = 100                           # number of temp. data-points
-    T_e_min = 10e-2                     # minimal temperature
-    T_e_max = 10e2                      # maximal temperature
+    T_e_min = 1e-2                      # minimal temperature
+    T_e_max = 1e2                       # maximal temperature
     
     #---------------------------physical parameters----------------------------
     Jx = 1.                             # dispersion-constant in x-direction
     Jy = 1.                             # dispersion-constant in y-direction   
-    lx = 7.                             # heated site (x-component)
-    ly = 1.                             # heated site (y-component)
-    # system size in x-direction (log spaced)
-    Mx = (lx * np.logspace(np.log10(Mx_min),np.log10(Mx_max),N_M)+1).astype(int) 
-    My = 2                              # system size in y-direction
-    # Mx + 1 mustn't be a multiple of My +1
-    Mx[(Mx+1)%(My+1) == 0] += 1
-    assert Mx != []
+    lx = 4                              # heated site (x-component)
+    ly = 1                              # heated site (y-component)
     n = 3                               # particle density
     g_h = 1.                            # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
     T_h = 60*Jx                         # temperature of the needle
+    My = 2                              # system size in y-direction
+    assert My >= ly
+    # vector with all parameters
+    params = np.array([Jx, Jy, lx, ly, n, g_h, g_e, T_h, My])
+    
+    #--------------------------physical variables------------------------------
+    # system size in x-direction (log spaced)
+    Mx = (lx * np.logspace(np.log10(Mx_min),np.log10(Mx_max),N_M)+1).astype(int) 
+    # Mx + 1 mustn't be a multiple of My +1
+    Mx[(Mx+1)%(My+1) == 0] += 1
+    assert (Mx != []) and (np.all(Mx >= lx))
     # temperatures of the environment
-    T_e = np.logspace(np.log10(T_e_min),np.log10(T_e_max),N_T)         
+    T_e = np.logspace(np.log10(T_e_min),np.log10(T_e_max),N_T)  
 
     #-------------------calculate the occupation numbers-----------------------
     print "Started calculation..."
@@ -166,6 +198,7 @@ def main():
         mat_M_n.tofile(fname_mat_M_n,sep=';')
         T_e.tofile(fname_T_e,sep=';')
         Mx.tofile(fname_Mx,sep=';')
+        params.tofile(fname_params,sep=';')
         print "Saving of data successful!"
     except:
         print "An error occured while saving the data!"

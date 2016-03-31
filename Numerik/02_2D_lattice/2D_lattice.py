@@ -241,9 +241,9 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 95                             # system size in x-direction
+Mx = 42                             # system size in x-direction
 My = 2                             # system size in y-direction
-lx = 7.                             # heated site (x-component)
+lx = 4.                             # heated site (x-component)
 ly = 1.                             # heated site (y-component)
 n = 3                               # particle density
 g_h = 1.                            # coupling strength needle<->system
@@ -253,7 +253,7 @@ M = Mx * My                         # new 2D-system size
 N = n*M                             # number of particles
 
 #----------------------------program parameters--------------------------------
-N_T = 100                           # number of temp. data-points
+N_T = 120                           # number of temp. data-points
 tmpN_t = 4                          # number of temp. data-points in
                                     # temporary calculations
 epsilon = 10e-10                    # minimal accuracy for the compare-test
@@ -301,29 +301,29 @@ mat_n = np.transpose(ns_2[::-1])
 fig = plt.figure("Mean-field occupation", figsize=(16,14))
 
 
-gs_left = gridspec.GridSpec(2, 1)        # grid spect for controlling figures
-gs_left.update(left=0.09, right=0.35)
+gs = gridspec.GridSpec(2, 2)        # grid spect for controlling figures
+#gs_left.update(left=0.02, right=0.48)
 # plotting window for n(kx,ky)
 
-axK = fig.add_subplot(gs_left[0,0])
+axK = fig.add_subplot(gs[0,0])
 axK.set_xlabel(r"$k_x$")
 axK.set_ylabel(r"$k_y$")
 axK.set_xlim([0,k_max])
 axK.set_ylim([k_min,k_max])
 
 # plotting window for n(kx|ky)
-axKx = fig.add_subplot(gs_left[1,0])
+axKx = fig.add_subplot(gs[1,0])
 axKx.set_xlabel(r"$k_x$")
 axKx.set_ylabel(r'$\bar{n}_i$')
 axKx.set_xlim([k_min,k_max])
 axKx.set_ylim([n_min,n_max])
 axKx.set_yscale('log')
 
-gs_right = gridspec.GridSpec(2, 2)
-gs_right.update(left=0.43, right=0.98)
+#gs_right = gridspec.GridSpec(2, 1)
+#gs_right.update(left=0.52, right=0.98)
 
 # plotting window for n(ky|kx)
-axKy = fig.add_subplot(gs_right[0,0])
+axKy = fig.add_subplot(gs[0,1])
 axKy.set_xlabel(r'$\bar{n}_i$')
 axKy.set_ylabel(r"$k_y$")
 axKy.set_xlim([n_min,n_max])
@@ -331,7 +331,7 @@ axKy.set_xscale('log')
 axKy.set_ylim([k_min,k_max])
 
 # plotting window for n(T_e)
-axT = fig.add_subplot(gs_right[1,0])
+axT = fig.add_subplot(gs[1,1])
 axT.set_xlabel(r'$T/J$')
 axT.set_ylabel(r'$\bar{n}_i$')
 axT.set_xlim([np.min(T_e), np.max(T_e)])
@@ -339,16 +339,16 @@ axT.set_ylim([n_min, n_max])
 axT.set_xscale('log')
 axT.set_yscale('log')
 
-axE = fig.add_subplot(gs_right[0,1])
-axE.set_title('Energylevels')
-axE.set_xlabel(r'$k_x$')
-axE.set_ylabel(r'$k_y$')
-axE.set_xlim([k_min, k_max])
-axE.set_ylim([k_min, k_max])
+#axE = fig.add_subplot(gs_right[0,1])
+#axE.set_title('Energylevels')
+#axE.set_xlabel(r'$k_x$')
+#axE.set_ylabel(r'$k_y$')
+#axE.set_xlim([k_min, k_max])
+#axE.set_ylim([k_min, k_max])
 
 
 # initial plots on program start
-plotE(E.reshape((My, Mx)),k_min,k_max)
+#plotE(E.reshape((My, Mx)),k_min,k_max)
 plot_axT(T_e, M, mat_n)
 plot_axK(T_plot, T_e, N_T, mat_n, n_min, n_max, kx, ky)
 plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, T_plot, E)
@@ -357,8 +357,8 @@ plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, T_plot, E)
 t_K = np.logspace(np.log10(n_min),np.log10(n_max), num=nticks_cb)
 cb_axK = fig.colorbar(graph_K, ax=axK, ticks=t_K, format='$%.1e$')
 
-cb_axE = fig.colorbar(graph_E, orientation ='horizontal',
-                      ticks=[np.min(E), 0, np.max(E)],ax=axE, format='%.2f')
+#cb_axE = fig.colorbar(graph_E, orientation ='horizontal',
+#                      ticks=[np.min(E), 0, np.max(E)],ax=axE, format='%.2f')
 
 # connect plotting window with the onClick method
 cid = fig.canvas.mpl_connect('button_press_event', onMouseClick) 
