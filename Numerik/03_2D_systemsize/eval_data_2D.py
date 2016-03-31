@@ -38,10 +38,8 @@ def main():
     iy = mat_M_n[1,:]
     # index of the condensate state using cantors coupling-function
     ind_cond = iy + (ix+iy)*(ix+iy+1)/2.
-    print ind_cond
     # graphs for imshow - rowwise mirrored 
     graphs = mat_M_n[2::][::-1]
-    print Mx
     
     
     
@@ -53,7 +51,7 @@ def main():
     dM = np.float(Mx[1])/Mx[0]        # 'distance' between nighboured sizes 
     T_min = T_e[0]                    # minimal temperature
     T_max = T_e[-1]                   # maximal temperature
-    cmaps = ['']
+    cmaps = ['BuPu', 'GnBu', 'Greens', 'Greys', 'Oranges', 'OrRd','YlOrBr']
     #------------------------set - up plotting windows-------------------------
     fig = plt.figure("Mean-field occupation", figsize=(16,14))
     
@@ -70,9 +68,10 @@ def main():
     # norm for colorbar
     norm = cm.colors.Normalize(vmax=n_max, vmin=n_min)
     # plotting-graph: extent has factor dM such that the borders fit
-    graph_M = axM.imshow(graphs,interpolation = 'None', cmap = cm.binary, 
-               norm =norm, extent=[M_min, M_max*dM, T_min, T_max])
-    cb_axE = fig.colorbar(graph_M,ticks=[0, 0.5, 1],ax=axM, format='%.1f')
+    for i in range(N_M):
+        graph_M = axM.imshow(graphs[:,i],interpolation = 'None', cmap = plt.get_cmap(cmaps[i%len(cmaps)]), 
+                  norm =norm, extent=[M_min, M_max*dM, T_min, T_max])
+        cb_axE = fig.colorbar(graph_M,ticks=[0, 0.5, 1],ax=axM, format='%.1f')
 
     # optimize font-size   
     matplotlib.rcParams.update({'font.size': 16})
