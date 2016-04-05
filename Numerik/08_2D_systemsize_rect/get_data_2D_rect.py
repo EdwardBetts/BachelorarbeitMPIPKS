@@ -187,8 +187,8 @@ def main():
     fname_params = 'params.dat'         # file-name of the file for params
     
     #N_M = 3                            # number of system-size data-points
-    Mx_min = 11                         # minimal system size
-    Mx_max = 15                         # maximal system size
+    Mx_min = 10                         # minimal system size
+    Mx_max = 333                         # maximal system size
     My_min = Mx_min-1                   # minimal system size (magnitude)
     My_max = Mx_max-1                   # maximal system size (magnitude)
     N_T = 100                           # number of temp. data-points
