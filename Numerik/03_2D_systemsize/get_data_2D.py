@@ -101,8 +101,8 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
     for i in range(len(Mx)):
         if i % 5 == 0:
             print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx))
+        print Mx[i] 
         l = get_cond_cand(lx, ly, Mx[i], My)# determine condensate-candidates
-        print l
         M = Mx[i] * My                      # total number of sizes
         r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
         N = n*M                             # particle number         
@@ -159,9 +159,9 @@ def main():
     fname_Mx = 'Mx.dat'                 # file-name of the file for Mx
     fname_T_e = 'T_e.dat'               # file-name of the file for T_e
     fname_params = 'params.dat'         # file-name of the file for params
-    N_M = 3                             # number of system-size data-points
+    N_M = 20                             # number of system-size data-points
     Mx_min = 10                         # minimal system size (magnitude)
-    Mx_max = 25                         # maximal system size (magnitude)
+    Mx_max = 400                        # maximal system size (magnitude)
     N_T = 100                           # number of temp. data-points
     T_e_min = 1e-2                      # minimal temperature
     T_e_max = 1e2                       # maximal temperature
@@ -169,7 +169,7 @@ def main():
     #---------------------------physical parameters----------------------------
     Jx = 1.                             # dispersion-constant in x-direction
     Jy = 1.                             # dispersion-constant in y-direction   
-    lx = 4                              # heated site (x-component)
+    lx = 5                              # heated site (x-component)
     ly = 1                              # heated site (y-component)
     n = 3                               # particle density
     g_h = 1.                            # coupling strength needle<->system
@@ -185,7 +185,7 @@ def main():
     Mx = (lx * np.logspace(np.log10(Mx_min),np.log10(Mx_max),N_M)+1).astype(int) 
     # Mx + 1 mustn't be a multiple of My +1
     Mx[(Mx+1)%(My+1) == 0] += 1
-    assert (Mx != []) and (np.all(Mx >= lx))
+    assert (np.sum(Mx[(Mx+1)%(My+1) == 0]) == 0) and (np.all(Mx >= lx))
     # temperatures of the environment
     T_e = np.logspace(np.log10(T_e_min),np.log10(T_e_max),N_T)  
 
