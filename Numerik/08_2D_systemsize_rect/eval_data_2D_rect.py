@@ -14,7 +14,7 @@ def getParams(fname):
     """ Load file fname with saved parameters and return them."""
     params = np.fromfile(fname, sep=';')
     return  params[0], params[1], params[2], params[3], params[4],\
-            params[5], params[6], params[7], params[8]
+            params[5], params[6], params[7]
 
 def get_conn_parts(a):
     """ Return slice-operands that choose connected parts from array a
@@ -51,7 +51,7 @@ def main():
     fname_params = 'params.dat'       # file-name of the file for params
     
     # physical parameters
-    Jx, Jy, lx, ly, n, g_h, g_e, T_h, My = getParams(fname_params)   
+    Jx, Jy, lx, ly, n, g_h, g_e, T_h = getParams(fname_params)   
     
     # environment temperatures
     T_e = np.fromfile(fname_T_e, sep=';')
@@ -61,6 +61,7 @@ def main():
     N_M = len(Mx)
     # matrix with condensate states-occupations
     mat_M_n = np.fromfile(fname_mat_M_n, sep=';').reshape(N_T+2,N_M)
+    print mat_M_n
     # indices of condensate states
     ix = mat_M_n[0,:]
     iy = mat_M_n[1,:]

@@ -78,6 +78,7 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
     
     R = R_gen(beta[0])
     M = np.shape(R)[0]
+    log = 'Calculation successful.'
 
     curves = np.zeros((len(beta), M))           # matrix for numerical results
 
@@ -113,7 +114,7 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
             args=(R, M * n, red_state)
             func = lambda x: MF_equations(x, *args)
             try:
-                init = newton_krylov(func, init, verbose=1, maxiter=500)
+                init = newton_krylov(func, init, verbose=0, maxiter=500)
                 ier = 1
             except:
                 ier = 0
@@ -132,6 +133,7 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
                 for bet_inter in np.logspace(np.log10(bet_old), np.log10(beta[i]), steps)[1:]:
                     if steps > maxsteps:
                         print "Erneuter Fehler, gebe auf..."
+                        log += "An error occured!"
                         n_t = np.zeros(M)
                         mysuc = True
                         break
@@ -171,4 +173,4 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
         if np.all(n_t >= 0.):
             curves[i] = n_t
         
-    return beta, curves
+    return beta, curves, log
