@@ -143,10 +143,11 @@ def main():
     extent_cb = [0, 3, 0, 1]
     graph_cb = axCB.imshow(cb_bitmap, interpolation = 'None', 
                            extent = extent_cb)
-
+    axM.set_aspect(1)
     # optimize font-size   
     matplotlib.rcParams.update({'font.size': 16})
     plt.show()
+    
     
 if __name__ == '__main__':
    main()

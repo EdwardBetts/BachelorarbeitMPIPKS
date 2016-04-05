@@ -19,6 +19,8 @@ from scipy.optimize import fsolve
 import matplotlib
 import matplotlib.cm as cm
 import mf_solver as mfs
+import time
+import sys
 
 def get_k(M):
     """ Return all M possible quasimomenta of a 1D tight binding chain
@@ -91,16 +93,30 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
     mat_sin_x, mat_sin_y = np.meshgrid(vec_sin, vec_sin)
     R_h *= mat_sin_x * mat_sin_y
     return R_h
+    
+# function to save log messages to specified log file
+def write_log(msg, fname):
+  # open the specified log file
+  file = open(fname,"a")
+  # write log message with timestamp to log file
+  file.write("%s: %s\n" % (time.strftime("%d.%m.%Y %H:%M:%S"), msg))
+  # close log file
+  file.close
 
-def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
+def clear_log(fname):
+  file = open(fname,"w")
+  # close log file
+  file.close
+
+def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T, fnames):
     """ Calculate the occupation numbers in dependency of the system size M(x)
         and the environmental-temperature.
         Returns a matrix where M is constant in each column and 
         T_e is constant in each row."""
-    mat_n_M = np.zeros((N_T + 2,len(Mx)))   
+    mat_n_M = np.zeros((N_T + 2,len(Mx)))
+    clear_log(fnames[3])
+    write_log("Started Calculation of " + str(len(Mx)) + " elements", fnames[3])
     for i in range(len(Mx)):
-        if i % 5 == 0:
-            print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx))
         l = get_cond_cand(lx, ly, Mx[i], My[i])# determine condensate-candidates
         M = Mx[i] * My[i]                      # total number of sizes
         r_0 = n * np.ones(M-1)              # initial guess for n2,...,n_m
@@ -113,7 +129,7 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
                       ky, k, g_h, T_h)
         # sum of all transition-rates in dependency of the temperature
         R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1./x)
-        beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
+        beta_env, ns_2, log = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
         # matrix with occupation numbers in depedency of the temperature
         mat_n = np.transpose(ns_2[::-1])
         # determine index of condensate state (at T_e[1])
@@ -128,7 +144,14 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
         ind_cond_y = np.argmin(diff_y, axis=0)[0]
         mat_n_M[0,i] = ind_cond_x
         mat_n_M[1,i] = ind_cond_y
+        mat_n_M[:,:i+1].tofile(fnames[0],sep=';')
+        Mx[:i+1].tofile(fnames[1],sep=';')
+        My[:i+1].tofile(fnames[2],sep=';')
+        #if i % 5 == 0:
+        print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx))
+        write_log("Calculated Element " + str(i) + ". " + log, fnames[3])
     print "Calculation finished!"
+    write_log("Calculation finished!", fnames[3])
     return mat_n_M
 
 def get_cond_cand(lx, ly, Mx, My):
@@ -157,11 +180,15 @@ def main():
     fname_mat_M_n = 'mat_M_n.dat'       # file-name of the file for mat_M_n
     fname_Mx = 'Mx.dat'                 # file-name of the file for Mx
     fname_My = 'My.dat'                 # file-name of the file for Mx
+    fname_log = 'log.dat'               # log-file
+    fnames = [fname_mat_M_n, fname_Mx,  # array with filenames
+              fname_My, fname_log]
     fname_T_e = 'T_e.dat'               # file-name of the file for T_e
     fname_params = 'params.dat'         # file-name of the file for params
-    N_M = 15                            # number of system-size data-points
-    Mx_min = 11                         # minimal system size
-    Mx_max = 13                         # maximal system size
+    
+    #N_M = 3                            # number of system-size data-points
+    Mx_min = 10                         # minimal system size
+    Mx_max = 333                         # maximal system size
     My_min = Mx_min-1                   # minimal system size (magnitude)
     My_max = Mx_max-1                   # maximal system size (magnitude)
     N_T = 100                           # number of temp. data-points
@@ -180,6 +207,7 @@ def main():
 
     # vector with all parameters
     params = np.array([Jx, Jy, lx, ly, n, g_h, g_e, T_h])
+    params.tofile(fname_params,sep=';')
     
     #--------------------------physical variables------------------------------
     # system size in x-direction
@@ -189,19 +217,18 @@ def main():
     assert len(Mx) == len(My)
     # temperatures of the environment
     T_e = np.logspace(np.log10(T_e_min),np.log10(T_e_max),N_T)  
+    T_e.tofile(fname_T_e,sep=';')
 
     #-------------------calculate the occupation numbers-----------------------
     print "Started calculation..."
     mat_M_n = get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, 
-                          T_e, N_T)
-    print mat_M_n
+                          T_e, N_T, fnames)
+                          
     #------------------------Save all data to files----------------------------
     try:
         mat_M_n.tofile(fname_mat_M_n,sep=';')
-        T_e.tofile(fname_T_e,sep=';')
         Mx.tofile(fname_Mx,sep=';')
         My.tofile(fname_My,sep=';')
-        params.tofile(fname_params,sep=';')
         print "Saving of data successful!"
     except:
         print "An error occured while saving the data!"

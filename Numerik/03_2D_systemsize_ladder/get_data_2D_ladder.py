@@ -159,9 +159,9 @@ def main():
     fname_Mx = 'Mx.dat'                 # file-name of the file for Mx
     fname_T_e = 'T_e.dat'               # file-name of the file for T_e
     fname_params = 'params.dat'         # file-name of the file for params
-    N_M = 15                             # number of system-size data-points
+    N_M = 10                             # number of system-size data-points
     Mx_min = 11                         # minimal system size (magnitude)
-    Mx_max = 399                        # maximal system size (magnitude)
+    Mx_max = 50                        # maximal system size (magnitude)
     N_T = 150                           # number of temp. data-points
     T_e_min = 1e-2                      # minimal temperature
     T_e_max = 1e2                       # maximal temperature
@@ -173,7 +173,7 @@ def main():
     lx = 5                              # heated site (x-component)
     ly = 1                              # heated site (y-component)
     n = 3                               # particle density
-    g_h = 0.                            # coupling strength needle<->system
+    g_h = 1.                            # coupling strength needle<->system
     g_e = 1.                            # coupling strength environment<->sys
     T_h = 60*Jx                         # temperature of the needle
     My = 2                              # system size in y-direction

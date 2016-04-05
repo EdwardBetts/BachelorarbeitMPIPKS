@@ -241,8 +241,8 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 13                             # system size in x-direction
-My = 12                             # system size in y-direction
+Mx = 15                             # system size in x-direction
+My = 14                             # system size in y-direction
 lx = 4.                             # heated site (x-component)
 ly = 3.                             # heated site (y-component)
 n = 3                               # particle density
