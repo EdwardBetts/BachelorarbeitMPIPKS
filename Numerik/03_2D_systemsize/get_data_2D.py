@@ -159,9 +159,9 @@ def main():
     fname_Mx = 'Mx.dat'                 # file-name of the file for Mx
     fname_T_e = 'T_e.dat'               # file-name of the file for T_e
     fname_params = 'params.dat'         # file-name of the file for params
-    N_M = 20                             # number of system-size data-points
+    N_M = 10                             # number of system-size data-points
     Mx_min = 10                         # minimal system size (magnitude)
-    Mx_max = 400                        # maximal system size (magnitude)
+    Mx_max = 80                        # maximal system size (magnitude)
     N_T = 100                           # number of temp. data-points
     T_e_min = 1e-2                      # minimal temperature
     T_e_max = 1e2                       # maximal temperature
