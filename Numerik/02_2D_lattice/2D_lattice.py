@@ -241,19 +241,19 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 15                             # system size in x-direction
-My = 14                             # system size in y-direction
+Mx = 20                             # system size in x-direction
+My = 21                             # system size in y-direction
 lx = 4.                             # heated site (x-component)
 ly = 3.                             # heated site (y-component)
 n = 3                               # particle density
-g_h = 1.                            # coupling strength needle<->system
+g_h = 0.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
 T_h = 60*Jx                         # temperature of the needle
 M = Mx * My                         # new 2D-system size
 N = n*M                             # number of particles
 
 #----------------------------program parameters--------------------------------
-N_T = 150                           # number of temp. data-points
+N_T = 100                           # number of temp. data-points
 tmpN_t = 4                          # number of temp. data-points in
                                     # temporary calculations
 epsilon = 10e-10                    # minimal accuracy for the compare-test

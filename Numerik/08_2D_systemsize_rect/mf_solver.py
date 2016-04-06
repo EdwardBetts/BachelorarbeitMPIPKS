@@ -133,7 +133,7 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
                 for bet_inter in np.logspace(np.log10(bet_old), np.log10(beta[i]), steps)[1:]:
                     if steps > maxsteps:
                         print "Erneuter Fehler, gebe auf..."
-                        log += "An error occured!"
+                        log = "An error occured!"
                         n_t = np.zeros(M)
                         mysuc = True
                         break
