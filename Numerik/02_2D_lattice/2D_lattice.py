@@ -20,6 +20,7 @@ import matplotlib
 import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
 import mf_solver as mfs
+import solve_equilib as seq
 
 def get_k(M):
     """ Return all M possible quasimomenta of a 1D tight binding chain
@@ -101,7 +102,7 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
 def plot_axT(T_e, M, mat_n):
     """ Plots the occupation numbers for different environment temperatures."""
     for i in range(M):
-        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b')  
+        axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b') 
 
 def plot_axK(T_inp, T_e, N_T, mat_n, n_min, n_max, kx, ky):
     """ Draw a contourline-plot of the occupation numbers in dependency on
@@ -241,12 +242,12 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 20                             # system size in x-direction
-My = 21                             # system size in y-direction
+Mx = 10                             # system size in x-direction
+My = 11                             # system size in y-direction
 lx = 4.                             # heated site (x-component)
 ly = 3.                             # heated site (y-component)
 n = 3                               # particle density
-g_h = 0.                            # coupling strength needle<->system
+g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
 T_h = 60*Jx                         # temperature of the needle
 M = Mx * My                         # new 2D-system size
@@ -254,12 +255,9 @@ N = n*M                             # number of particles
 
 #----------------------------program parameters--------------------------------
 N_T = 100                           # number of temp. data-points
-tmpN_t = 4                          # number of temp. data-points in
-                                    # temporary calculations
-epsilon = 10e-10                    # minimal accuracy for the compare-test
-tmpN_max = 256                      # maximal number of subslices
+T_min = 1e-2                        # minimal temperature
+T_max = 1e2                         # maximal temperature
 T_e = np.logspace(-2,2,N_T)         # temperatures of the environment 
-r_0 = n * np.ones((M)-1)            # initial guess for n2,...,n_m
 
 #--------------------------plot parameters-------------------------------------
 graph_K = None                      # initialise graph at axK
@@ -293,17 +291,17 @@ R_h = get_R_h(E, M, lx, ly, kx,     # matrix with transition rates (needle)
 
 print "Started calculation of the occupation numbers..."    
 #-----------------------calculate occupation numbers---------------------------
-R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1./x)
-beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
-mat_n = np.transpose(ns_2[::-1])
+if np.abs(g_h) >= 10e-10:
+    R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1./x)
+    beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
+    mat_n = np.transpose(ns_2[::-1])
+    mat_n_eq = seq.get_eq_mfo(Jx, Jy, Mx, My, lx, ly, n, g_e, T_h, N_T, T_min, T_max)
+else:
+    mat_n = seq.get_eq_mfo(Jx, Jy, Mx, My, lx, ly, n, g_e, T_h, N_T, T_min, T_max)
 
 #------------------------set - up plotting windows-----------------------------
 fig = plt.figure("Mean-field occupation", figsize=(16,14))
-
-
 gs = gridspec.GridSpec(2, 2)        # grid spect for controlling figures
-#gs_left.update(left=0.02, right=0.48)
-# plotting window for n(kx,ky)
 
 axK = fig.add_subplot(gs[0,0])
 axK.set_xlabel(r"$k_x$")
@@ -318,9 +316,6 @@ axKx.set_ylabel(r'$\bar{n}_i$')
 axKx.set_xlim([k_min,k_max])
 axKx.set_ylim([n_min,n_max])
 axKx.set_yscale('log')
-
-#gs_right = gridspec.GridSpec(2, 1)
-#gs_right.update(left=0.52, right=0.98)
 
 # plotting window for n(ky|kx)
 axKy = fig.add_subplot(gs[0,1])
@@ -339,16 +334,7 @@ axT.set_ylim([n_min, n_max])
 axT.set_xscale('log')
 axT.set_yscale('log')
 
-#axE = fig.add_subplot(gs_right[0,1])
-#axE.set_title('Energylevels')
-#axE.set_xlabel(r'$k_x$')
-#axE.set_ylabel(r'$k_y$')
-#axE.set_xlim([k_min, k_max])
-#axE.set_ylim([k_min, k_max])
-
-
 # initial plots on program start
-#plotE(E.reshape((My, Mx)),k_min,k_max)
 plot_axT(T_e, M, mat_n)
 plot_axK(T_plot, T_e, N_T, mat_n, n_min, n_max, kx, ky)
 plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, T_plot, E)
@@ -356,9 +342,6 @@ plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, T_plot, E)
 # set-up-colorbar at axK
 t_K = np.logspace(np.log10(n_min),np.log10(n_max), num=nticks_cb)
 cb_axK = fig.colorbar(graph_K, ax=axK, ticks=t_K, format='$%.1e$')
-
-#cb_axE = fig.colorbar(graph_E, orientation ='horizontal',
-#                      ticks=[np.min(E), 0, np.max(E)],ax=axE, format='%.2f')
 
 # connect plotting window with the onClick method
 cid = fig.canvas.mpl_connect('button_press_event', onMouseClick) 
