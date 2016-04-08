@@ -99,12 +99,13 @@ def get_R_h(E, M, lx, ly, kx, ky, k, g_h, T_h):
     R_h *= mat_sin_x * mat_sin_y
     return R_h
         
-def plot_axT(T_e, M, mat_n):
+def plot_axT(T_e, M, mat_n, mat_n_eq):
     """ Plots the occupation numbers for different environment temperatures."""
     for i in range(M):
         axT.plot(T_e,np.abs(mat_n[i,:]), c = 'b') 
+        axT.plot(T_e,np.abs(mat_n_eq[i,:]), c = '0.75', ls=':')
 
-def plot_axK(T_inp, T_e, N_T, mat_n, n_min, n_max, kx, ky):
+def plot_axK(T_inp, T_e, N_T, mat_n, n_min, n_max, kx, ky, mat_n_eq):
     """ Draw a contourline-plot of the occupation numbers in dependency on
         the quasimomenta kx, ky for fixed enironment temperature T_inp.
         This routine also draws a vertical line at T_inp in axT."""
@@ -112,6 +113,7 @@ def plot_axK(T_inp, T_e, N_T, mat_n, n_min, n_max, kx, ky):
     global vline_T
     # use global plot_mat_n for using it in other procedures
     global plot_mat_n
+    global plot_mat_n_eq
     global T_plot
     # remove lines drawn before        
     if graph_K != None:    
@@ -131,6 +133,7 @@ def plot_axK(T_inp, T_e, N_T, mat_n, n_min, n_max, kx, ky):
     
     # contourmatrix of occupation numbers n(k)
     plot_mat_n = mat_n[:,ind_plot].reshape((len(ky),len(kx)))
+    plot_mat_n_eq = mat_n_eq[:,ind_plot].reshape((len(ky),len(kx)))
     # create contourplot and mirror the matrix in y-direction
     graph_K = axK.imshow(plot_mat_n[::-1,:], interpolation = 'None', cmap = cm.YlOrRd,
                  norm=matplotlib.colors.LogNorm(n_min, n_max), 
@@ -146,7 +149,7 @@ def get_BE(T_e, E, mu, k):
     return n_BE, k[ind_E+1:]
     
     
-def plot_n_k(k, kx, ky, kx_inp, ky_inp, n, T_e, E):
+def plot_n_k(k, kx, ky, kx_inp, ky_inp, n, n_eq, T_e, E):
     """ Draw n(kx|ky) and n(kx|ky) at given environmental temperature T_e
         and given k= (kx,ky). n ist the matrix of occupation numbers at
         fixed temperature T_e. kx is constant over each column, ky in each row.
@@ -198,24 +201,26 @@ def plot_n_k(k, kx, ky, kx_inp, ky_inp, n, T_e, E):
     
     # occupation number at fixed ky in dependency of kx
     n_kx = n[ind_plot_ky/len(kx),:]
+    n_kx_eq = n_eq[ind_plot_ky/len(kx),:]
     # occupation number at fixed kx in dependency of ky        
     n_ky = n[:,ind_plot_kx%len(kx)]
+    n_ky_eq = n_eq[:,ind_plot_kx%len(kx)]
     graph_kx = axKx.plot(kx,n_kx, color='g')
     graph_ky = axKy.plot(n_ky,ky, color='g')
     
     # plot BE-distribution
-    ind_max_n = np.argmax(n)    # no reshape necessary
-    mu = E[ind_max_n]
-    mat_E = E.reshape((len(ky),len(kx)))
+    #ind_max_n = np.argmax(n)    # no reshape necessary
+    #mu = E[ind_max_n]
+    #mat_E = E.reshape((len(ky),len(kx)))
     # energy at fixed ky in dependency of kx
-    E_kx = mat_E[ind_plot_ky/len(kx),:]
+    #E_kx = mat_E[ind_plot_ky/len(kx),:]
     # energy at fixed kx in dependency of ky
-    E_ky = mat_E[:,ind_plot_kx%len(kx)]
+    #E_ky = mat_E[:,ind_plot_kx%len(kx)]
     # BE-distribution
-    BE_x, kx_BE = get_BE(T_e, E_kx, mu, kx)
-    BE_y, ky_BE = get_BE(T_e, E_ky, mu, ky)
-    graph_BEx = axKx.plot(kx_BE, BE_x, color='b')
-    graph_BEy = axKy.plot(BE_y, ky_BE, color='b')
+    #BE_x, kx_BE = get_BE(T_e, E_kx, mu, kx)
+    #BE_y, ky_BE = get_BE(T_e, E_ky, mu, ky)
+    graph_BEx = axKx.plot(kx, n_kx_eq, color='b')
+    graph_BEy = axKy.plot(n_ky_eq, ky, color='b')
     
 def onMouseClick(event):
     """ Implements the click interactions of the user.
@@ -224,14 +229,14 @@ def onMouseClick(event):
     if  event.button == 1 and event.inaxes == axT and mode == '':
         # find the clicked position and draw a vertical line
         T_click = event.xdata
-        plot_axK(T_click, T_e, N_T, mat_n, n_min, n_max, kx, ky)
-        plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, T_plot, E)
+        plot_axK(T_click, T_e, N_T, mat_n, n_min, n_max, kx, ky, mat_n_eq)
+        plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, plot_mat_n_eq, T_plot, E)
         
     elif event.button == 1 and event.inaxes == axK and mode == '':
         # find the clicked position
         kx_click = event.xdata
         ky_click = event.ydata
-        plot_n_k(k, kx, ky, kx_click, ky_click, plot_mat_n, T_plot, E)
+        plot_n_k(k, kx, ky, kx_click, ky_click, plot_mat_n, plot_mat_n_eq, T_plot, E)
     # refreshing
     fig.canvas.draw()
     
@@ -242,10 +247,10 @@ print __doc__
 #---------------------------physical parameters--------------------------------
 Jx = 1.                             # dispersion-constant in x-direction
 Jy = 1.                             # dispersion-constant in y-direction   
-Mx = 10                             # system size in x-direction
-My = 11                             # system size in y-direction
-lx = 4.                             # heated site (x-component)
-ly = 3.                             # heated site (y-component)
+Mx = 20                             # system size in x-direction
+My = 21                             # system size in y-direction
+lx = 6.                             # heated site (x-component)
+ly = 1.                             # heated site (y-component)
 n = 3                               # particle density
 g_h = 1.                            # coupling strength needle<->system
 g_e = 1.                            # coupling strength environment<->sys
@@ -265,6 +270,7 @@ vline_T = None                      # initialise vertical line at axT
 vline_K = None                      # initialise vertical line at axK
 hline_K = None                      # initialise horizontal line at axK
 plot_mat_n = None                   # occupation number at fixed T_e
+plot_mat_n_eq = None                # BE-occupation number at fixed T_e
 graph_kx = None                     # initialise graph at axKx
 graph_ky = None                     # initialise graph at axKy
 graph_BEx = None                    # initialise graph for BEx at axKx
@@ -293,11 +299,12 @@ print "Started calculation of the occupation numbers..."
 #-----------------------calculate occupation numbers---------------------------
 if np.abs(g_h) >= 10e-10:
     R_gen = lambda x: R_h + get_R_e(E, M, g_e, 1./x)
-    beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=False, usederiv=True)
+    beta_env, ns_2 = mfs.MF_curves_temp(R_gen, n, 1./T_e[::-1], debug=True, usederiv=True)
     mat_n = np.transpose(ns_2[::-1])
     mat_n_eq = seq.get_eq_mfo(Jx, Jy, Mx, My, lx, ly, n, g_e, T_h, N_T, T_min, T_max)
 else:
     mat_n = seq.get_eq_mfo(Jx, Jy, Mx, My, lx, ly, n, g_e, T_h, N_T, T_min, T_max)
+    mat_n_eq = mat_n
 
 #------------------------set - up plotting windows-----------------------------
 fig = plt.figure("Mean-field occupation", figsize=(16,14))
@@ -335,9 +342,9 @@ axT.set_xscale('log')
 axT.set_yscale('log')
 
 # initial plots on program start
-plot_axT(T_e, M, mat_n)
-plot_axK(T_plot, T_e, N_T, mat_n, n_min, n_max, kx, ky)
-plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, T_plot, E)
+plot_axT(T_e, M, mat_n, mat_n_eq)
+plot_axK(T_plot, T_e, N_T, mat_n, n_min, n_max, kx, ky, mat_n_eq)
+plot_n_k(k, kx, ky, kx_plot, ky_plot, plot_mat_n, plot_mat_n_eq, T_plot, E)
 
 # set-up-colorbar at axK
 t_K = np.logspace(np.log10(n_min),np.log10(n_max), num=nticks_cb)

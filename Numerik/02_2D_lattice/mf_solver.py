@@ -113,7 +113,7 @@ def MF_curves_temp(R_gen, n, b_or_lg_b_min, lg_b_max=None, steps=None, selected=
             args=(R, M * n, red_state)
             func = lambda x: MF_equations(x, *args)
             try:
-                init = newton_krylov(func, init, verbose=1, maxiter=500)
+                init = newton_krylov(func, init, verbose=0, maxiter=500)
                 ier = 1
             except:
                 ier = 0
