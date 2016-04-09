@@ -100,7 +100,7 @@ def get_mat_n_M(Mx, My, Jx, Jy, n, lx, ly, g_e, g_h, T_h, T_e, N_T):
     mat_n_M = np.zeros((N_T + 2,len(Mx)))   
     for i in range(len(Mx)):
         if i % 5 == 0:
-            print "Calculated {0:.2f}%".format(100*np.float64(i)/len(Mx))
+            print "Calculated {:.2%}".format(np.float64(i)/len(Mx))
         print Mx[i] 
         l = get_cond_cand(lx, ly, Mx[i], My)# determine condensate-candidates
         M = Mx[i] * My                      # total number of sizes
